@@ -1,0 +1,18 @@
+% Breakable pseudocode listings for the appendix. An algorithm float cannot
+% split across a column, and each appendix listing is most of a column tall, so
+% floating them left a large hole wherever one did not fit. These two macros
+% reproduce the ruled float's appearance while letting the body break across
+% columns like ordinary text. \refstepcounter keeps "Algorithm N" numbering and
+% \ref working from the body.
+\makeatletter
+\newcommand{\algstart}[2]{%
+  \par\addvspace{1.4ex}%
+  \refstepcounter{algorithm}%
+  \noindent\rule{\linewidth}{0.9pt}\par\nobreak\vspace{0.5ex}%
+  {\interlinepenalty=10000\noindent{\normalsize\textbf{Algorithm \thealgorithm:} #1}\label{#2}\par}%
+  \nobreak\vspace{0.5ex}%
+  \noindent\rule{\linewidth}{0.4pt}\par\nobreak\vspace{0.4ex}}
+\newcommand{\algfinish}{%
+  \par\nobreak\vspace{0.4ex}%
+  \noindent\rule{\linewidth}{0.9pt}\par\addvspace{1.4ex}}
+\makeatother

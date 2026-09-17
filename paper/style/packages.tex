@@ -1,0 +1,40 @@
+% The style file loads xcolor itself, so the table option has to be handed over
+% before that happens. It brings in colortbl, for row and cell backgrounds.
+% Table 4 used it for a reversed-out legend band until 2026-08-23; nothing in
+% the paper draws on a colour now, so this can go if nothing new wants it.
+\PassOptionsToPackage{table}{xcolor}
+\usepackage{style/usenix-2020-09}
+
+\usepackage{tikz}
+\usepackage{helvet}
+% arrows.meta is loaded alongside arrows, not instead of it: the older figures
+% keep their >=stealth' tips, while fig-thread-race sizes its heads in absolute
+% pt. Old style tips scale with the line width, which made the 3pt connectors
+% in that figure read as blobs rather than arrows.
+\usetikzlibrary{arrows,arrows.meta,backgrounds,decorations.pathreplacing,patterns.meta}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{float}
+\usepackage{makecell}
+\usepackage{comment}
+
+% The bibliography carries long URLs and \texttt{} commit hashes. In a narrow
+% two-column measure those are unbreakable boxes, so TeX pads the inter-word
+% spaces around them instead, which shows up as rivers of white in an entry.
+% xurl lets a URL break at any character; emergencystretch gives the paragraph
+% builder a last-resort pass so it stops stretching good lines to save a bad one.
+\usepackage{xurl}
+
+% breaklinks, because the usenix style loads hyperref with no options and the
+% pdftex default is false. A link that breaks across lines then gets ONE
+% bounding box spanning everything between its start and its end, and xurl
+% breaks long URLs freely, so a citation whose URL straddled a column break
+% produced a clickable rectangle 200pt tall covering the whole of Figure 5.
+% With breaklinks the link is emitted one rectangle per line.
+\hypersetup{breaklinks=true}

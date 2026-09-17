@@ -1,0 +1,15 @@
+% Caption convention borrowed from the FAST'26 papers in role-models/: the
+% opening sentence is set bold as a headline, the rest reads as ordinary prose.
+% It gives every float a scannable one-line summary. Defined once so the whole
+% paper can be switched back by editing this line alone.
+\newcommand{\capheadline}[1]{\textbf{#1}}
+
+% Visible, greppable placeholder. Deliberately loud so an unfinished section
+% cannot be mistaken for finished prose in a draft read. Delete the macro and
+% every \placeholder call before submission; `grep -n placeholder` finds them.
+\newcommand{\placeholder}[1]{%
+  \par\medskip\noindent\fbox{\parbox{0.95\linewidth}{%
+    \footnotesize\textbf{[PLACEHOLDER]} #1}}\par\medskip}
+
+\newcommand{\pname}[1]{\textsc{SMC}{#1}}
+\newcommand{\aname}[1]{\textsc{CS}{#1}}

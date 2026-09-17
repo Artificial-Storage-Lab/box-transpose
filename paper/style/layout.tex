@@ -1,0 +1,32 @@
+% Every column is set to the full 9in measure, the way the FAST papers in
+% role-models/ are.  \raggedbottom left each column ending wherever its last
+% line fell, which reads as a ragged, uneven foot across a spread.  The floats
+% are placed so little is left to absorb, so the stretch stays invisible.
+\flushbottom
+\emergencystretch=2em
+
+% A page holding only floats ignores [t]: LaTeX centres its contents between
+% \@fptop and \@fpbot, which both default to 0pt plus 1fil. That left the
+% appendix table stranded in the middle of an otherwise blank page. Dropping the
+% stretch at the top makes a float page start at the top margin, which is what
+% [t] already asks for everywhere else.
+\makeatletter
+\setlength{\@fptop}{0pt}
+\setlength{\@dblfptop}{0pt}   % table* spans both columns and uses its own glue
+\makeatother
+
+% Number and display two levels below subsubsection, so the results section can
+% show its own structure (breadth vs depth) instead of relying on prose to
+% signal it. This also promotes the eight pre-existing \paragraph labels in the
+% design section from run-in italicised asides to numbered headings, which is
+% the same improvement applied consistently rather than only where it was asked
+% for. Their trailing periods were stripped to match.
+\setcounter{secnumdepth}{5}
+\makeatletter
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}%
+  {2.0ex \@plus1ex \@minus.2ex}{0.6ex \@plus.2ex}%
+  {\normalfont\normalsize\bfseries}}
+\renewcommand\subparagraph{\@startsection{subparagraph}{5}{\z@}%
+  {1.8ex \@plus1ex \@minus.2ex}{0.5ex \@plus.2ex}%
+  {\normalfont\small\bfseries}}
+\makeatother

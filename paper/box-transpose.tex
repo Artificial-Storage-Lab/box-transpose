@@ -1,0 +1,68 @@
+% Box transpose paper. Build with `make` — see README.md in this folder.
+\documentclass[letterpaper,twocolumn,10pt]{article}
+
+% House preamble, carried over unchanged from the smartcontiguous paper so this
+% document behaves identically to that one. Each file carries the reasoning for
+% its own settings; read those comments before changing anything here.
+\input{style/packages}
+\input{style/layout}
+\input{style/macros}
+\input{style/algorithms}
+
+\begin{document}
+
+\title{Box Transpose: In-Place N-Dimensional Permutation on GPUs}
+
+\author{
+{\rm Kaveen Jayamanna}\\
+\placeholder{Affiliation}
+}
+
+\maketitle
+
+\begin{abstract}
+\placeholder{Abstract. One paragraph: the problem, the idea, the headline
+result.}
+\end{abstract}
+
+\section{Introduction}
+\placeholder{Introduction.}
+
+\section{Background}
+\placeholder{Permutation as a memory-movement problem; why out-of-place copies
+are the thing to avoid.}
+
+\section{Design}
+\label{sec:design}
+
+\subsection{Adjacent box swaps}
+\placeholder{A box is a run of adjacent axes treated as one unit. A swap
+exchanges two adjacent boxes, and is carried out as an in-place transpose of a
+logical $\mathit{rows} \times \mathit{cols}$ matrix, batched over $D_{pre}$ and
+vectorised over $D_{post}$.}
+
+\subsection{Planning by shortest path}
+\placeholder{The search over axis orderings, the edge cost model, and what
+$\tau$ and $D_{post}^{*}$ prune.}
+
+\subsection{Cost model}
+\label{sec:cost}
+\placeholder{Derivation of the per-step cost and how $\mu$ is calibrated.}
+
+\section{Implementation}
+\placeholder{The cycle-following kernel: scalar and float4 paths, the grid
+mapping, and the auxiliary cycle arrays.}
+
+\section{Evaluation}
+\placeholder{Setup, baselines, and results.}
+
+\section{Related Work}
+\placeholder{Related work.}
+
+\section{Conclusion}
+\placeholder{Conclusion.}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}

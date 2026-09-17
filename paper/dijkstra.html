@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Box-Following: Dijkstra</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f8fafc; font-family: 'Courier New', monospace; overflow: hidden; }
+
+#graph { display: block; width: 100%; height: calc(100vh - 54px); }
+
+#bar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 54px;
+  background: #fff; border-top: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 14px; padding: 0 24px;
+}
+.btn {
+  padding: 8px 22px; border-radius: 7px; cursor: pointer;
+  font-family: inherit; font-size: 0.9rem; font-weight: bold;
+  border: none; transition: background .1s;
+}
+.btn-go   { background: #1d4ed8; color: #fff; }
+.btn-go:hover:not(:disabled) { background: #1e40af; }
+.btn-go:disabled { background: #cbd5e1; cursor: default; }
+.btn-rst  { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.btn-rst:hover:not(:disabled) { background: #e2e8f0; }
+.btn-rst:disabled { color: #cbd5e1; cursor: default; }
+#status { font-size: 0.9rem; color: #475569; flex: 1; }
+#icount { font-size: 0.85rem; color: #94a3b8; margin-left: auto; }
+
+.n-label { font-size: 15px; font-weight: bold; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.n-tag   { font-size: 10px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; fill: #94a3b8; }
+.n-cost  { font-size: 11px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+/* font-family only — size and fill stay as attributes so JS can override them */
+.p-title, .p-row, .p-body, .p-dim { font-family: 'Courier New', monospace; }
+</style>
+</head>
+<body>
+
+<svg id="graph" viewBox="0 0 1940 700" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <marker id="arr-idle"  markerWidth="7" markerHeight="5" refX="6.5" refY="2.5" orient="auto">
+      <polygon points="0 0,7 2.5,0 5" fill="#e5eaf0"/></marker>
+    <marker id="arr-skip"  markerWidth="7" markerHeight="5" refX="6.5" refY="2.5" orient="auto">
+      <polygon points="0 0,7 2.5,0 5" fill="#cbd5e1"/></marker>
+    <marker id="arr-blue"  markerWidth="7" markerHeight="5" refX="6.5" refY="2.5" orient="auto">
+      <polygon points="0 0,7 2.5,0 5" fill="#3b82f6"/></marker>
+    <marker id="arr-green" markerWidth="7" markerHeight="5" refX="6.5" refY="2.5" orient="auto">
+      <polygon points="0 0,7 2.5,0 5" fill="#16a34a"/></marker>
+    <marker id="arr-amber" markerWidth="7" markerHeight="5" refX="6.5" refY="2.5" orient="auto">
+      <polygon points="0 0,7 2.5,0 5" fill="#f59e0b"/></marker>
+  </defs>
+
+  <g id="gEdges"></g>
+  <g id="gEdgeLabel"></g>
+  <g id="gNodes"></g>
+
+  <!-- ── PRIORITY QUEUE ─────────────────────────────────────── -->
+  <text class="p-title" x="1010" y="66" font-size="11" fill="#94a3b8">PRIORITY QUEUE   (the pool)</text>
+  <rect x="1010" y="74" width="290" height="196" rx="8" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  <g id="pqRows"></g>
+
+  <!-- ── dist TABLE ─────────────────────────────────────────── -->
+  <text class="p-title" x="1010" y="300" font-size="11" fill="#94a3b8">dist { }   ← best known cost per ordering</text>
+  <rect x="1010" y="308" width="290" height="176" rx="8" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  <g id="distRows"></g>
+
+  <!-- ── LEGEND ─────────────────────────────────────────────── -->
+  <rect x="1010" y="514" width="290" height="150" rx="8" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  <rect x="1024" y="528" width="13" height="13" rx="3" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text class="p-dim" x="1046" y="538" font-size="11" fill="#94a3b8">in the pool (frontier)</text>
+  <rect x="1024" y="548" width="13" height="13" rx="3" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text class="p-dim" x="1046" y="558" font-size="11" fill="#94a3b8">popped — expanding now</text>
+  <rect x="1024" y="568" width="13" height="13" rx="3" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+  <text class="p-dim" x="1046" y="578" font-size="11" fill="#94a3b8">settled (cost is final)</text>
+  <rect x="1024" y="588" width="13" height="13" rx="3" fill="#fff5f5" stroke="#fca5a5" stroke-width="1.5"/>
+  <text class="p-dim" x="1046" y="598" font-size="11" fill="#94a3b8">target</text>
+  <line x1="1024" y1="614" x2="1038" y2="614" stroke="#f59e0b" stroke-width="3"/>
+  <text class="p-dim" x="1046" y="618" font-size="11" fill="#94a3b8">swap being examined</text>
+  <line x1="1024" y1="632" x2="1038" y2="632" stroke="#3b82f6" stroke-width="2.4"/>
+  <text class="p-dim" x="1046" y="636" font-size="11" fill="#94a3b8">pushed (new best)</text>
+  <line x1="1024" y1="650" x2="1038" y2="650" stroke="#16a34a" stroke-width="3.4"/>
+  <text class="p-dim" x="1046" y="654" font-size="11" fill="#94a3b8">chosen plan</text>
+
+  <!-- ── COST / DECISION PANEL ──────────────────────────────── -->
+  <rect x="1330" y="74" width="590" height="590" rx="8" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  <text class="p-title" x="1346" y="66" font-size="11" fill="#94a3b8">EDGE COST   ·   shape (2,3,4) · float32</text>
+
+  <text class="p-body" x="1346" y="102" font-size="14" fill="#1e293b" font-weight="bold">cost = d_pre × moved_cells × d_post × 4 B × 2</text>
+  <text class="p-dim" x="1346" y="122" font-size="11" fill="#94a3b8">d_pre / d_post — axes outside the swap window (carried along)</text>
+  <text class="p-dim" x="1346" y="138" font-size="11" fill="#94a3b8">moved_cells   — cells of the rows×cols matrix that are NOT fixed points</text>
+  <text class="p-dim" x="1346" y="154" font-size="11" fill="#94a3b8">4 B × 2       — float32, read + write</text>
+  <line x1="1330" y1="168" x2="1920" y2="168" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text class="p-title" x="1346" y="190" font-size="11" fill="#94a3b8">SWAP BEING EXAMINED</text>
+  <text id="curHead" class="p-body" x="1346" y="216" font-size="14" fill="#1e293b"></text>
+  <text id="winPic"  class="p-body" x="1346" y="246" font-size="14"></text>
+  <text id="winHint" class="p-dim"  x="1346" y="266" font-size="11" fill="#94a3b8"></text>
+  <text id="curGeom" class="p-body" x="1346" y="294" font-size="12" fill="#475569"></text>
+  <text id="curMove" class="p-body" x="1346" y="314" font-size="12" fill="#475569"></text>
+  <text id="curCalc" class="p-body" x="1346" y="344" font-size="14" fill="#1e293b"></text>
+  <line x1="1330" y1="362" x2="1920" y2="362" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text class="p-title" x="1346" y="384" font-size="11" fill="#94a3b8">DECISION</text>
+  <text id="decA" class="p-body" x="1346" y="410" font-size="12" fill="#475569"></text>
+  <text id="decB" class="p-body" x="1346" y="430" font-size="12" fill="#475569"></text>
+  <text id="decC" class="p-body" x="1346" y="456" font-size="14" font-weight="bold" fill="#1d4ed8"></text>
+  <line x1="1330" y1="474" x2="1920" y2="474" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text class="p-title" x="1346" y="496" font-size="11" fill="#94a3b8">CHEAPEST ROUTE TO TARGET SO FAR</text>
+  <text id="pathA" class="p-body" x="1346" y="522" font-size="12" fill="#475569"></text>
+  <text id="pathB" class="p-body" x="1346" y="542" font-size="12" fill="#475569"></text>
+  <text id="pathC" class="p-body" x="1346" y="562" font-size="12" fill="#475569"></text>
+  <text id="pathD" class="p-body" x="1346" y="590" font-size="14" fill="#1e293b"></text>
+</svg>
+
+<div id="bar">
+  <button class="btn btn-rst" id="btnPrev" onclick="step(-1)">◀ Prev</button>
+  <button class="btn btn-go"  id="btnNext" onclick="step(1)">Next ▶</button>
+  <button class="btn btn-rst" onclick="reset()">↺</button>
+  <span id="status"></span>
+  <span id="icount"></span>
+</div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+
+// ── problem definition ───────────────────────────────────────────
+const SHAPE      = [2, 3, 4];      // dims of axes A, B, C
+const NAMES      = ['A', 'B', 'C'];
+const RANK       = 3;
+const START      = [0, 1, 2];
+const TARGET     = [2, 1, 0];
+const ELEM_BYTES = 4;
+const RW_PASSES  = 2;
+
+// every ordering of 3 axes, in a fixed display order
+const ORDERINGS = [[0,1,2], [1,0,2], [1,2,0], [2,0,1], [0,2,1], [2,1,0]];
+const ID = {};
+ORDERINGS.forEach((o, i) => { ID[o.join('')] = i; });
+const LABEL = ORDERINGS.map(o => '[' + o.map(a => NAMES[a]).join(',') + ']');
+const DIMS  = ORDERINGS.map(o => o.map(a => SHAPE[a]));
+const N_START = ID[START.join('')], N_TARGET = ID[TARGET.join('')];
+
+// every (i, j, k) window+split, exactly as the planner enumerates them
+const TRIPLES = [];
+for (let i = 0; i < RANK - 1; i++)
+  for (let j = i + 1; j < RANK; j++)
+    for (let k = j + 1; k <= RANK; k++) TRIPLES.push([i, j, k]);
+
+// ── cost model (mirrors matrix_transpose_cycles + make_step) ─────
+function movedCells(rows, cols) {
+  const total = rows * cols;
+  const seen = new Uint8Array(total);
+  let moved = 0;
+  for (let s = 0; s < total; s++) {
+    if (seen[s]) continue;
+    let cur = s, len = 0;
+    while (!seen[cur]) {
+      seen[cur] = 1; len++;
+      cur = (cur % cols) * rows + Math.floor(cur / cols);
+    }
+    if (len > 1) moved += len;          // length-1 cycles are fixed points
+  }
+  return moved;
+}
+const prod = a => a.reduce((x, y) => x * y, 1);
+
+function makeStep(axes, i, j, k) {
+  const dims  = axes.map(a => SHAPE[a]);
+  const rows  = prod(dims.slice(i, j));
+  const cols  = prod(dims.slice(j, k));
+  const dPre  = prod(dims.slice(0, i));
+  const dPost = prod(dims.slice(k));
+  const moved = movedCells(rows, cols);
+  const name  = (a, b) => axes.slice(a, b).map(x => NAMES[x]).join('');
+  return {
+    i, j, k, rows, cols, dPre, dPost, moved,
+    after: [...axes.slice(0, i), ...axes.slice(j, k), ...axes.slice(i, j), ...axes.slice(k)],
+    cost: dPre * moved * dPost * ELEM_BYTES * RW_PASSES,
+    swap: name(i, j) + '↔' + name(j, k),
+  };
+}
+
+// every directed edge of the implicit graph
+const EDGES = [];
+ORDERINGS.forEach((axes, u) => {
+  TRIPLES.forEach(([i, j, k]) => {
+    const st = makeStep(axes, i, j, k);
+    EDGES.push({ u, v: ID[st.after.join('')], key: u + '>' + ID[st.after.join('')], st });
+  });
+});
+
+// ── Dijkstra, recording one snapshot per observable step ─────────
+const cmpAxes = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+const bytes = v => v === Infinity ? '∞' : v + ' B';
+
+function buildSnapshots() {
+  const snaps = [];
+  const dist = ORDERINGS.map(() => Infinity);
+  dist[N_START] = 0;
+  let pq = [{ n: N_START, c: 0 }];
+  const settled = new Set(), edgeState = {}, prev = [];
+  let popping = null, done = false;
+
+  const push = (status, current) => {
+    const nodeState = ORDERINGS.map((_, n) => {
+      if (done && n === N_TARGET) return 'found';
+      if (settled.has(n))         return 'settled';
+      if (popping === n)          return 'popping';
+      if (n === N_TARGET)         return 'target';
+      return dist[n] < Infinity ? 'frontier' : 'unseen';
+    });
+    snaps.push({
+      dist: dist.slice(), pq: pq.map(e => ({ ...e })), nodeState,
+      edges: { ...edgeState }, current: current || null,
+      path: pathTo(prev, N_TARGET, dist), status,
+    });
+  };
+
+  push('shape=(2,3,4) → permute=(2,1,0).  The pool holds only the start. Press Next ▶.', null);
+
+  while (pq.length) {
+    pq.sort((a, b) => a.c - b.c || cmpAxes(ORDERINGS[a.n], ORDERINGS[b.n]));
+    const head = pq.shift();
+    if (head.c !== dist[head.n]) continue;             // stale entry, skip
+
+    if (head.n === N_TARGET) {
+      done = true; settled.add(head.n); popping = null;
+      let cur = head.n;
+      while (prev[cur] !== undefined) { edgeState[prev[cur].from + '>' + cur] = 'path'; cur = prev[cur].from; }
+      push('Pop ' + LABEL[head.n] + ' (' + head.c + ' B) — that is the TARGET, so stop. Nothing cheaper can be left in the pool.', null);
+      break;
+    }
+
+    popping = head.n;
+    push('Pop ' + LABEL[head.n] + ' (' + bytes(head.c) + ') — cheapest in the pool. Now examine all ' +
+         TRIPLES.length + ' adjacent-box swaps from here.', null);
+
+    for (const [i, j, k] of TRIPLES) {
+      const st = makeStep(ORDERINGS[head.n], i, j, k);
+      const to = ID[st.after.join('')];
+      const newCost = head.c + st.cost;
+      const before  = dist[to];
+      const update  = newCost < before;
+      if (update) {
+        dist[to] = newCost;
+        prev[to] = { from: head.n, step: st };
+        pq.push({ n: to, c: newCost });                // old entry left behind, as in heapq
+      }
+      const ek = head.n + '>' + to;
+      edgeState[ek] = update ? 'explored' : 'skip';
+      push(
+        st.swap + ' → ' + LABEL[to] + ':  ' + head.c + ' + ' + st.cost + ' = ' + newCost + ' B  ' +
+        (update
+          ? (before === Infinity ? 'vs ∞ (never reached before)  →  push'
+                                 : 'vs ' + before + ' B known  →  cheaper, push')
+          : 'vs ' + bytes(before) + ' known  →  not cheaper, skip'),
+        { from: head.n, to, st, newCost, before, update }
+      );
+    }
+    settled.add(head.n);
+    popping = null;
+  }
+  return snaps;
+}
+
+function pathTo(prev, node, dist) {
+  if (dist[node] === Infinity) return null;
+  const out = [];
+  let cur = node;
+  while (prev[cur] !== undefined) { out.unshift({ from: prev[cur].from, to: cur, step: prev[cur].step }); cur = prev[cur].from; }
+  return out;
+}
+
+const SNAPS = buildSnapshots();
+
+// ── geometry ─────────────────────────────────────────────────────
+const NODE_W = 154, NODE_H = 64, BOW = 28;
+const POS = [
+  { x: 124, y: 350 },   // 0 [A,B,C]  START
+  { x: 344, y: 146 },   // 1 [B,A,C]
+  { x: 652, y: 146 },   // 2 [B,C,A]
+  { x: 344, y: 554 },   // 3 [C,A,B]
+  { x: 652, y: 554 },   // 4 [A,C,B]
+  { x: 866, y: 350 },   // 5 [C,B,A]  TARGET
+];
+
+function trim(from, to, pad) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const hw = NODE_W / 2 + pad, hh = NODE_H / 2 + pad;
+  const t = Math.min(dx ? hw / Math.abs(dx) : Infinity, dy ? hh / Math.abs(dy) : Infinity);
+  return { x: to.x - dx * t, y: to.y - dy * t };
+}
+function arc(u, v) {
+  const p = trim(POS[v], POS[u], 5), q = trim(POS[u], POS[v], 9);
+  const dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy);
+  const nx = -dy / len, ny = dx / len;
+  const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+  return { d: `M ${p.x} ${p.y} Q ${mx + nx * BOW} ${my + ny * BOW} ${q.x} ${q.y}`,
+           mid: { x: mx + nx * BOW / 2, y: my + ny * BOW / 2 } };
+}
+
+// ── static scene ─────────────────────────────────────────────────
+const gEdges = document.getElementById('gEdges');
+EDGES.forEach(e => {
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('id', 'edge_' + e.key);
+  p.setAttribute('d', arc(e.u, e.v).d);
+  p.setAttribute('fill', 'none');
+  gEdges.appendChild(p);
+});
+
+const gNodes = document.getElementById('gNodes');
+ORDERINGS.forEach((o, n) => {
+  const g = document.createElementNS(NS, 'g');
+  const r = document.createElementNS(NS, 'rect');
+  r.setAttribute('id', 'rect_' + n);
+  r.setAttribute('x', POS[n].x - NODE_W / 2); r.setAttribute('y', POS[n].y - NODE_H / 2);
+  r.setAttribute('width', NODE_W); r.setAttribute('height', NODE_H);
+  r.setAttribute('rx', 11); r.setAttribute('ry', 11);
+  g.appendChild(r);
+  const mk = (cls, dy, txt, id) => {
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('class', cls); t.setAttribute('x', POS[n].x); t.setAttribute('y', POS[n].y + dy);
+    if (id) t.setAttribute('id', id);
+    t.textContent = txt; g.appendChild(t); return t;
+  };
+  mk('n-label', -13, LABEL[n], 'lbl_' + n);
+  mk('n-tag',     5, (n === N_START ? 'START · ' : n === N_TARGET ? 'TARGET · ' : '') + DIMS[n].join(','));
+  mk('n-cost',   21, '', 'cost_' + n);
+  gNodes.appendChild(g);
+});
+
+const NODE_STYLE = {
+  unseen:   { fill: '#f8fafc', stroke: '#e2e8f0', sw: 2,   lc: '#475569' },
+  frontier: { fill: '#eff6ff', stroke: '#93c5fd', sw: 2,   lc: '#1d4ed8' },
+  popping:  { fill: '#fef3c7', stroke: '#f59e0b', sw: 3,   lc: '#b45309' },
+  settled:  { fill: '#dcfce7', stroke: '#22c55e', sw: 2,   lc: '#15803d' },
+  target:   { fill: '#fff5f5', stroke: '#fca5a5', sw: 2,   lc: '#dc2626' },
+  found:    { fill: '#f0fdf4', stroke: '#16a34a', sw: 3.5, lc: '#14532d' },
+};
+const EDGE_STYLE = {
+  idle:     { stroke: '#eef2f6', sw: 1.2, dash: 'none',  marker: 'arr-idle'  },
+  skip:     { stroke: '#cbd5e1', sw: 1.6, dash: '5,4',   marker: 'arr-skip'  },
+  explored: { stroke: '#3b82f6', sw: 2.4, dash: 'none',  marker: 'arr-blue'  },
+  path:     { stroke: '#16a34a', sw: 3.6, dash: 'none',  marker: 'arr-green' },
+  current:  { stroke: '#f59e0b', sw: 3.4, dash: 'none',  marker: 'arr-amber' },
+};
+
+// ── rendering ────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function setText(id, txt, fill) { const e = $(id); e.textContent = txt; if (fill) e.setAttribute('fill', fill); }
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+function render(s) {
+  const snap = SNAPS[s];
+
+  ORDERINGS.forEach((_, n) => {
+    const st = NODE_STYLE[snap.nodeState[n]];
+    const r = $('rect_' + n);
+    r.setAttribute('fill', st.fill); r.setAttribute('stroke', st.stroke); r.setAttribute('stroke-width', st.sw);
+    $('lbl_' + n).setAttribute('fill', st.lc);
+    const c = $('cost_' + n);
+    c.textContent = snap.dist[n] === Infinity ? '' : 'cost: ' + snap.dist[n] + ' B';
+    c.setAttribute('fill', snap.nodeState[n] === 'settled' ? '#15803d' : '#1d4ed8');
+  });
+
+  EDGES.forEach(e => {
+    let state = snap.edges[e.key] || 'idle';
+    if (snap.current && snap.current.from === e.u && snap.current.to === e.v) state = 'current';
+    const st = EDGE_STYLE[state], p = $('edge_' + e.key);
+    p.setAttribute('stroke', st.stroke); p.setAttribute('stroke-width', st.sw);
+    p.setAttribute('stroke-dasharray', st.dash); p.setAttribute('marker-end', 'url(#' + st.marker + ')');
+  });
+
+  const gl = $('gEdgeLabel'); clear(gl);
+  if (snap.current) {
+    const { mid } = arc(snap.current.from, snap.current.to);
+    const box = document.createElementNS(NS, 'rect');
+    box.setAttribute('x', mid.x - 46); box.setAttribute('y', mid.y - 15);
+    box.setAttribute('width', 92); box.setAttribute('height', 30); box.setAttribute('rx', 5);
+    box.setAttribute('fill', '#fffbeb'); box.setAttribute('stroke', '#f59e0b'); box.setAttribute('stroke-width', 1.2);
+    gl.appendChild(box);
+    const mk = (dy, txt, size, fill, weight) => {
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', mid.x); t.setAttribute('y', mid.y + dy);
+      t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'middle');
+      t.setAttribute('font-size', size); t.setAttribute('fill', fill);
+      t.setAttribute('font-family', 'Courier New'); if (weight) t.setAttribute('font-weight', weight);
+      t.textContent = txt; gl.appendChild(t);
+    };
+    mk(-5, snap.current.st.swap, 12, '#b45309', 'bold');
+    mk(7, snap.current.st.cost + ' B', 11, '#92400e');
+  }
+
+  // priority queue
+  const pqRows = $('pqRows'); clear(pqRows);
+  const sorted = [...snap.pq].sort((a, b) => a.c - b.c || cmpAxes(ORDERINGS[a.n], ORDERINGS[b.n]));
+  if (!sorted.length) {
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('class', 'p-row'); t.setAttribute('x', 1026); t.setAttribute('y', 104);
+    t.setAttribute('font-size', 12);
+    t.setAttribute('fill', '#94a3b8'); t.textContent = '(empty — search finished)';
+    pqRows.appendChild(t);
+  }
+  sorted.forEach((e, i) => {
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('class', 'p-row'); t.setAttribute('x', 1026); t.setAttribute('y', 104 + i * 24);
+    t.setAttribute('font-size', 12);
+    t.setAttribute('fill', i === 0 ? '#b45309' : '#475569');
+    t.setAttribute('font-weight', i === 0 ? 'bold' : 'normal');
+    t.textContent = (i === 0 ? '▶ ' : '  ') + LABEL[e.n].padEnd(9) + '  ' + e.c + ' B';
+    pqRows.appendChild(t);
+  });
+
+  // dist table
+  const distRows = $('distRows'); clear(distRows);
+  ORDERINGS.forEach((_, n) => {
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('class', 'p-row'); t.setAttribute('x', 1026); t.setAttribute('y', 332 + n * 24);
+    t.setAttribute('font-size', 12);
+    t.setAttribute('fill', snap.dist[n] === Infinity ? '#94a3b8' : n === N_TARGET ? '#dc2626' : '#1e293b');
+    t.textContent = LABEL[n].padEnd(9) + '  ' + bytes(snap.dist[n]);
+    distRows.appendChild(t);
+  });
+
+  renderCurrent(snap);
+  renderPath(snap);
+
+  $('status').textContent = snap.status;
+  $('icount').textContent = 'step ' + s + ' / ' + (SNAPS.length - 1);
+  $('btnPrev').disabled = s === 0;
+  $('btnNext').disabled = s === SNAPS.length - 1;
+}
+
+function renderCurrent(snap) {
+  const c = snap.current;
+  const winPic = $('winPic'); clear(winPic);
+  if (!c) {
+    ['curHead','winHint','curGeom','curMove','curCalc','decA','decB','decC'].forEach(id => setText(id, ''));
+    setText('curHead', '—  press Next ▶ to examine a swap', '#94a3b8');
+    return;
+  }
+  const { st, from, to, newCost, before, update } = c;
+  const axes = ORDERINGS[from];
+
+  setText('curHead', LABEL[from] + '  --' + st.swap + '-->  ' + LABEL[to], '#1e293b');
+
+  const seg = (txt, fill, bold) => {
+    const t = document.createElementNS(NS, 'tspan');
+    t.textContent = txt; t.setAttribute('fill', fill);
+    if (bold) t.setAttribute('font-weight', 'bold');
+    winPic.appendChild(t);
+  };
+  seg('[ ', '#94a3b8');
+  axes.forEach((a, idx) => {
+    const left = idx >= st.i && idx < st.j, right = idx >= st.j && idx < st.k;
+    seg(NAMES[a] + '=' + SHAPE[a], left ? '#1d4ed8' : right ? '#0891b2' : '#94a3b8', left || right);
+    if (idx < axes.length - 1) seg('  |  ', '#cbd5e1');
+  });
+  seg(' ]', '#94a3b8');
+
+  setText('winHint', '  left box → rows      right box → cols      outside → d_pre / d_post', '#94a3b8');
+  setText('curGeom', 'rows = ' + st.rows + '   cols = ' + st.cols + '   d_pre = ' + st.dPre + '   d_post = ' + st.dPost, '#475569');
+  setText('curMove', 'moved_cells = ' + st.moved + '  of  ' + (st.rows * st.cols) +
+                     '   (' + (st.rows * st.cols - st.moved) + ' fixed points stay put)', '#475569');
+  setText('curCalc', st.dPre + ' × ' + st.moved + ' × ' + st.dPost + ' × ' + ELEM_BYTES + ' × ' + RW_PASSES +
+                     '  =  ' + st.cost + ' B', '#1e293b');
+
+  setText('decA', 'cost to get here ' + snap.dist[from] + ' B + this swap ' + st.cost + ' B  =  ' + newCost + ' B', '#475569');
+  setText('decB', 'best already known for ' + LABEL[to] + ':  ' + bytes(before), '#475569');
+  setText('decC', update ? '→ ' + newCost + ' < ' + bytes(before) + '   PUSH into the pool'
+                         : '→ ' + newCost + ' ≥ ' + bytes(before) + '   SKIP, nothing pushed',
+                  update ? '#1d4ed8' : '#94a3b8');
+}
+
+function renderPath(snap) {
+  const p = snap.path;
+  ['pathA','pathB','pathC','pathD'].forEach(id => setText(id, ''));
+  if (!p || !p.length) { setText('pathA', 'target not reached yet', '#94a3b8'); return; }
+  const ids = ['pathA','pathB','pathC'];
+  p.forEach((leg, i) => {
+    if (i < ids.length)
+      setText(ids[i], (i + 1) + '.  ' + LABEL[leg.from] + '  ' + leg.step.swap.padEnd(7) +
+                      '  ' + leg.step.cost + ' B  →  ' + LABEL[leg.to], '#475569');
+  });
+  const total = p.reduce((s, l) => s + l.step.cost, 0);
+  setText('pathD', 'total  =  ' + total + ' B' + (snap.nodeState[N_TARGET] === 'found' ? '   (final)' : '   (best so far)'), '#1e293b');
+}
+
+// ── controls ─────────────────────────────────────────────────────
+let cur = 0;
+function step(d) { cur = Math.max(0, Math.min(SNAPS.length - 1, cur + d)); render(cur); }
+function reset() { cur = 0; render(cur); }
+render(0);
+</script>
+</body>
+</html>
