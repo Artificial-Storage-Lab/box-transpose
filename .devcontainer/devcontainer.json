@@ -1,0 +1,34 @@
+{
+  "name": "box-transpose",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+
+  // Bind-mounted over the image's copy, so edits on the host are live in the
+  // container. The editable install in the Dockerfile points at this same path.
+  "workspaceFolder": "/code",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/code,type=bind"
+  ],
+
+  // --gpus=all is required: without a visible GPU the kernel cannot compile
+  // or run. shm-size lifts Docker's 64MB default, which NGC images warn about.
+  // --name fixes the container name; without it Docker assigns a random one.
+  "runArgs": ["--gpus=all", "--shm-size=8g", "--name", "vsc-kaveen-box"],
+
+  // Re-run after the bind mount replaces the image's copy of the source.
+  "postCreateCommand": "pip install -e '.[calibration]' && python -c 'import torch, box_transpose; print(\"CUDA:\", torch.cuda.is_available())'",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter",
+        "ms-vscode.cpptools"
+      ]
+    }
+  },
+
+  "remoteUser": "root"
+}

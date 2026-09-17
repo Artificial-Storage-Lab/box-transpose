@@ -1,0 +1,8 @@
+.git/
+.devcontainer/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+src/_kernels/_build/
+*.jsonl

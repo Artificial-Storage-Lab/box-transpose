@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "box-transpose"
+version = "0.1.0"
+description = "In-place N-D tensor permutation on CUDA by box following"
+requires-python = ">=3.10"
+dependencies = ["torch"]
+
+[project.optional-dependencies]
+calibration = ["numpy", "pytest"]
+
+# src/ holds the package contents directly, with no nested box_transpose/ dir.
+# This maps that directory onto the import name, so `import box_transpose`
+# works even though nothing on disk is called that.
+[tool.setuptools]
+package-dir = { box_transpose = "src" }
+packages = ["box_transpose", "box_transpose._kernels"]
+
+[tool.setuptools.package-data]
+box_transpose = ["_kernels/*.cu", "_kernels/*.cpp", "_kernels/*.cuh"]
