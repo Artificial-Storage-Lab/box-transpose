@@ -184,3 +184,4 @@ On large tensors the two agree closely: fixed points are typically just the two
 corner cells out of millions. On small ones they diverge visibly — for
 `(2,3,4) -> (2,1,0)` the planner returns a 336-byte plan where a 304-byte plan
 exists. Both are two steps.
+# ai-native-research-tech-stack
