@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contiguous Copy → VRAM 1D Layout</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: #f1f5f9;
+  color: #1e293b;
+  font-family: 'Courier New', Consolas, monospace;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 14px 4px;
+  gap: 0;
+}
+
+/* ── NAV ── */
+.top-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+  padding-bottom: 6px;
+}
+.nav-link {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  transition: background .12s;
+}
+.nav-link:hover { background: #f1f5f9; color: #1d4ed8; }
+.nav-link.nav-current { background: #f0fdf4; color: #16a34a; border-color: #86efac; font-weight: bold; }
+.nav-sep { color: #cbd5e1; font-size: 0.9rem; }
+
+/* ── THREE-COLUMN LAYOUT fills full viewport ── */
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+
+/* ── LEFT PANEL ── */
+.left-panel {
+  width: 290px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.panel-title {
+  font-size: 1.9rem;
+  font-weight: bold;
+  color: #16a34a;
+  line-height: 1.3;
+}
+
+.tagline {
+  color: #94a3b8;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.ok-badge {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 7px 12px;
+  color: #16a34a;
+  font-size: 0.88rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.info-block {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  box-shadow: 0 1px 4px #0001;
+}
+.info-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.97rem; gap: 6px; }
+.i-key { color: #94a3b8; }
+.i-val { color: #1d4ed8; font-weight: bold; text-align: right; }
+.i-val.yes { color: #16a34a; }
+
+.legend {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  box-shadow: 0 1px 4px #0001;
+}
+.leg-item { display: flex; align-items: center; gap: 10px; font-size: 0.92rem; color: #64748b; }
+.leg-box  { width: 18px; height: 18px; border-radius: 4px; border: 2px solid; flex-shrink: 0; }
+
+.left-note {
+  font-size: 0.92rem;
+  color: #94a3b8;
+  line-height: 1.65;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 13px 15px;
+  flex: 1;
+}
+.left-note strong { color: #1e293b; }
+.left-note .gn { color: #16a34a; font-weight: bold; }
+
+/* ── CENTER PANEL ── */
+.center-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  overflow-y: auto;
+  padding-bottom: 18px;
+}
+
+.sec-hdr {
+  font-size: 0.82rem;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #94a3b8;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── CUBE ── */
+.cube-scene {
+  perspective: 1100px;
+  perspective-origin: 50% 40%;
+  flex: 1;
+  min-height: 180px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+.cube-scene:active { cursor: grabbing; }
+
+.cube-group {
+  transform-style: preserve-3d;
+  position: relative;
+  transition: opacity 0.18s ease;
+}
+
+.cube-plane {
+  position: absolute; top: 0; left: 0;
+  transform-style: preserve-3d;
+}
+
+.ccube {
+  position: absolute;
+  background: #dbeafe;
+  border: 2px solid #93c5fd;
+  border-radius: 5px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  cursor: pointer;
+  transition: background .12s, box-shadow .12s;
+  text-align: center;
+}
+.ccube:hover { background: #bfdbfe; border-color: #3b82f6; box-shadow: 0 0 10px #3b82f644; }
+.ccube.hi    { background: #16a34a; border-color: #166534; box-shadow: 0 0 16px #22c55e77; }
+
+.cletter     { font-weight: 700; line-height: 1; }
+.cidx        { line-height: 1; opacity: 0.75; }
+.ccube    .cletter { color: #1d4ed8; }
+.ccube    .cidx    { color: #1d4ed8; }
+.ccube.hi .cletter,
+.ccube.hi .cidx    { color: #fff; opacity: 1; }
+
+.cube-plane.back .ccube { transform: scaleX(-1); }
+.cube-plane.back .d-lbl-text { transform: scaleX(-1); display: inline-block; }
+
+.cube-wall {
+  position: absolute; top: 0; left: 0;
+  background: rgba(219,234,254,0.18);
+  border: 1px solid rgba(147,197,253,0.38);
+  pointer-events: none;
+}
+
+.cface {
+  position: absolute;
+  background: rgba(219,234,254,0.75);
+  border: 1.5px solid #93c5fd;
+  border-radius: 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  cursor: pointer; overflow: hidden;
+  transition: background .12s, box-shadow .12s;
+}
+.cface:hover { background: rgba(191,219,254,0.95); border-color: #3b82f6; }
+.cface.hi    { background: #16a34a; border-color: #166534; box-shadow: 0 0 10px #22c55e55; }
+.cface    .cletter { color: #1d4ed8; font-weight: 700; }
+.cface    .cidx    { color: #1d4ed8; opacity: 0.8; }
+.cface.hi .cletter { color: #fff; }
+.cface.hi .cidx    { color: #fff; opacity: 1; }
+
+.ax-lbl {
+  position: absolute;
+  font-weight: bold;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.cube-hint { font-size: 0.88rem; color: #94a3b8; text-align: center; flex-shrink: 0; }
+
+hr.div { width: 100%; border: none; border-top: 1px dashed #e2e8f0; flex-shrink: 0; }
+
+/* ── FLAT SLICES ── */
+.tensor-wrapper {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.slice-container { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.slice-title {
+  color: #16a34a; font-size: 1.0rem; font-weight: bold;
+  background: #f0fdf4; border: 1px solid #86efac; border-radius: 5px; padding: 5px 16px;
+}
+.slice-inner { display: flex; gap: 5px; }
+.row-labels  { display: flex; flex-direction: column; gap: 5px; padding-top: 27px; }
+.row-lbl     { display: flex; align-items: center; font-size: 0.74rem; color: #94a3b8; }
+.grid-area   { display: flex; flex-direction: column; gap: 5px; }
+.col-labels  { display: flex; gap: 5px; margin-bottom: 2px; }
+.col-lbl     { text-align: center; font-size: 0.74rem; color: #94a3b8; }
+.grid-row    { display: flex; gap: 5px; }
+
+.c3d {
+  background: #dbeafe; border: 2px solid #93c5fd; border-radius: 6px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; text-align: center;
+  transition: background .13s, transform .13s, box-shadow .13s;
+  user-select: none;
+}
+.c3d:hover { background: #bfdbfe; border-color: #3b82f6; transform: scale(1.06); box-shadow: 0 0 8px #3b82f633; }
+.c3d.hi    { background: #16a34a; border-color: #166534; transform: scale(1.08); box-shadow: 0 0 12px #22c55e55; }
+.c3d    .cletter { color: #1d4ed8; }
+.c3d    .cidx    { color: #1d4ed8; }
+.c3d.hi .cletter,
+.c3d.hi .cidx    { color: #fff; opacity: 1; }
+
+/* ── 1D ARRAY ── */
+.array-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; flex-shrink: 0; }
+
+.c1d {
+  background: #f0fdf4;
+  border: 2px solid #86efac;
+  border-radius: 6px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: background .13s, transform .13s, box-shadow .13s;
+}
+.c1d .cletter { font-weight: 700; line-height: 1; color: #16a34a; }
+.c1d .fi      { color: #16a34a; line-height: 1; }
+.c1d .ab      { color: #94a3b8; line-height: 1; margin-top: 1px; }
+.c1d.hi       { background: #16a34a; border-color: #166534; transform: scale(1.1); box-shadow: 0 0 12px #22c55e55; }
+.c1d.hi .cletter { color: #fff; }
+.c1d.hi .fi   { color: #fff; }
+.c1d.hi .ab   { color: #bbf7d0; }
+
+/* solid 6-cell blocks — contiguous groups by depth */
+.c1d.d0 { border-color: #93c5fd; }
+.c1d.d0 .cletter, .c1d.d0 .fi { color: #2563eb; }
+.c1d.d1 { border-color: #c4b5fd; }
+.c1d.d1 .cletter, .c1d.d1 .fi { color: #7c3aed; }
+.c1d.d2 { border-color: #fed7aa; }
+.c1d.d2 .cletter, .c1d.d2 .fi { color: #ea580c; }
+.c1d.d3 { border-color: #fca5a5; }
+.c1d.d3 .cletter, .c1d.d3 .fi { color: #dc2626; }
+.c1d.hi .cletter, .c1d.hi .fi { color: #fff !important; }
+
+/* ── RIGHT PANEL ── */
+.right-panel {
+  width: 330px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.r-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 4px #0001;
+}
+.r-card.grow { flex: 1; display: flex; flex-direction: column; }
+
+.r-card-title {
+  font-size: 0.82rem; letter-spacing: 1.2px; text-transform: uppercase;
+  color: #94a3b8; margin-bottom: 14px; flex-shrink: 0;
+}
+
+.f-generic { color: #94a3b8; font-size: 1.0rem; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; flex-shrink: 0; }
+.f-generic .sym { color: #16a34a; }
+.f-computed { font-size: 1.08rem; line-height: 2.1; flex: 1; }
+.fv  { color: #d97706; font-weight: bold; }
+.fd  { color: #16a34a; }
+.fr  { color: #16a34a; font-size: 1.25em; font-weight: bold; }
+.fph { color: #cbd5e1; font-size: 0.92rem; }
+
+.ctl-grid { display: flex; flex-direction: column; gap: 11px; }
+.ctl-row  { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spd-lbl  { color: #94a3b8; font-size: 0.9rem; }
+
+.btn {
+  background: #f0fdf4; color: #16a34a; border: 1px solid #86efac;
+  padding: 10px 20px; border-radius: 7px; cursor: pointer;
+  font-family: inherit; font-size: 0.96rem; transition: background .12s;
+}
+.btn:hover { background: #dcfce7; }
+.btn.active-spd { background: #16a34a; color: #fff; border-color: #166534; }
+.btn.stop { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+.btn.stop:hover { background: #fecaca; }
+.btn-full { width: 100%; text-align: center; }
+
+.stride-table { width: 100%; border-collapse: collapse; font-size: 0.96rem; margin-bottom: 11px; }
+.stride-table td { padding: 5px 0; }
+.stride-table .s-dim { color: #94a3b8; padding-right: 10px; }
+.stride-table .s-val { color: #16a34a; font-weight: bold; text-align: right; }
+.stride-eq   { font-size: 0.98rem; color: #1e293b; margin-bottom: 8px; }
+.stride-eq .g { color: #16a34a; font-weight: bold; }
+.stride-note { font-size: 0.88rem; color: #94a3b8; line-height: 1.65; }
+.stride-note .g { color: #16a34a; }
+
+.compare-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.compare-table td { padding: 5px 4px; vertical-align: top; }
+.compare-table .ct-hdr { color: #94a3b8; font-size: 0.78rem; letter-spacing: 1px; text-transform: uppercase; padding-bottom: 8px; }
+.compare-table .ct-before { color: #dc2626; }
+.compare-table .ct-after  { color: #16a34a; font-weight: bold; }
+.compare-table .ct-lbl { color: #64748b; }
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <a href="tensor_vram_layout.html" class="nav-link">← Original (2,3,4)</a>
+  <span class="nav-sep">|</span>
+  <a href="tensor_vram_layout_transposed.html" class="nav-link">Transposed (4,3,2)</a>
+  <span class="nav-sep">|</span>
+  <a href="tensor_vram_layout_contiguous.html" class="nav-link nav-current">.contiguous() (4,3,2)</a>
+</nav>
+
+<div class="layout">
+
+  <!-- ════ LEFT PANEL ════ -->
+  <aside class="left-panel">
+    <div class="panel-title">Contiguous Copy</div>
+    <p class="tagline">.contiguous() repacks VRAM.<br>Shape &amp; values are unchanged.</p>
+
+    <div class="ok-badge">✓ Contiguous memory</div>
+
+    <div class="info-block">
+      <div class="info-row"><span class="i-key">shape</span>      <span class="i-val">(4, 3, 2)</span></div>
+      <div class="info-row"><span class="i-key">D</span>           <span class="i-val">4 slices</span></div>
+      <div class="info-row"><span class="i-key">H</span>           <span class="i-val">3 rows</span></div>
+      <div class="info-row"><span class="i-key">W</span>           <span class="i-val">2 cols</span></div>
+      <div class="info-row"><span class="i-key">dtype</span>      <span class="i-val">float32</span></div>
+      <div class="info-row"><span class="i-key">total</span>      <span class="i-val">24 el / 96 B</span></div>
+      <div class="info-row"><span class="i-key">contiguous</span> <span class="i-val yes">✓ YES</span></div>
+    </div>
+
+    <div class="legend">
+      <div class="leg-item"><div class="leg-box" style="background:#dbeafe;border-color:#93c5fd"></div>3D cell</div>
+      <div class="leg-item"><div class="leg-box" style="background:#16a34a;border-color:#166534"></div>3D active</div>
+      <div class="leg-item"><div class="leg-box" style="background:#f0fdf4;border-color:#93c5fd"></div>1D cell (d=0, pos 0–5)</div>
+      <div class="leg-item"><div class="leg-box" style="background:#f0fdf4;border-color:#c4b5fd"></div>1D cell (d=1, pos 6–11)</div>
+      <div class="leg-item"><div class="leg-box" style="background:#f0fdf4;border-color:#fed7aa"></div>1D cell (d=2, pos 12–17)</div>
+      <div class="leg-item"><div class="leg-box" style="background:#f0fdf4;border-color:#fca5a5"></div>1D cell (d=3, pos 18–23)</div>
+      <div class="leg-item"><div class="leg-box" style="background:#16a34a;border-color:#166534"></div>1D active</div>
+    </div>
+
+    <div class="left-note">
+      The <span class="gn">cube and slices look identical</span> to the transposed page — same shape, same values.<br><br>
+      But the <strong>VRAM row is physically different</strong>: elements are now laid out in logical order, so scanning d→h→w always moves left-to-right in memory. <span class="gn">No more jumping.</span>
+    </div>
+  </aside>
+
+  <!-- ════ CENTER PANEL ════ -->
+  <main class="center-panel">
+    <div class="sec-hdr">3D cube — same logical view as transposed · drag to rotate</div>
+
+    <div class="cube-scene" id="cubeScene">
+      <div class="cube-group" id="cubeGroup"></div>
+    </div>
+
+    <div class="cube-hint">h = rows (top→bottom) &nbsp;·&nbsp; w = columns (left→right) &nbsp;·&nbsp; d = depth (front→back, 4 slices)</div>
+
+    <hr class="div">
+
+    <div class="sec-hdr">same tensor — flat slices (identical to transposed)</div>
+    <div class="tensor-wrapper" id="tensor3d"></div>
+
+    <div class="sec-hdr">↓ &nbsp; new vram — physically repacked by .contiguous()</div>
+    <div class="array-row" id="array1d"></div>
+  </main>
+
+  <!-- ════ RIGHT PANEL ════ -->
+  <aside class="right-panel">
+
+    <div class="r-card grow">
+      <div class="r-card-title">Index Formula</div>
+      <div class="f-generic">flat = <span class="sym">d</span>×6 + <span class="sym">h</span>×2 + <span class="sym">w</span></div>
+      <div class="f-computed" id="fcomp"><span class="fph">← hover a cell</span></div>
+    </div>
+
+    <div class="r-card">
+      <div class="r-card-title">Animate Scan Order</div>
+      <div class="ctl-grid">
+        <button class="btn btn-full" id="walkBtn" onclick="toggleWalk()">▶ Animate</button>
+        <div class="ctl-row">
+          <span class="spd-lbl">Speed:</span>
+          <button class="btn active-spd" id="spd0" onclick="setSpd(0)">Slow</button>
+          <button class="btn"            id="spd1" onclick="setSpd(1)">Fast</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="r-card">
+      <div class="r-card-title">Strides</div>
+      <table class="stride-table">
+        <tr><td class="s-dim">dim-0 (D)</td><td class="s-val">H×W = 6</td></tr>
+        <tr><td class="s-dim">dim-1 (H)</td><td class="s-val">W = 2</td></tr>
+        <tr><td class="s-dim">dim-2 (W)</td><td class="s-val">1</td></tr>
+      </table>
+      <div class="stride-eq">tensor_c.stride() = <span class="g">(6, 2, 1)</span></div>
+      <div class="stride-note">
+        tensor_c[d,h,w] → offset<br>
+        <span class="g">d×6 + h×2 + w×1</span><br>
+        elements from base pointer
+      </div>
+    </div>
+
+    <div class="r-card">
+      <div class="r-card-title">Before vs. After</div>
+      <table class="compare-table">
+        <tr>
+          <td class="ct-hdr"></td>
+          <td class="ct-hdr">Transposed</td>
+          <td class="ct-hdr">Contiguous</td>
+        </tr>
+        <tr>
+          <td class="ct-lbl">shape</td>
+          <td>(4,3,2)</td>
+          <td class="ct-after">(4,3,2)</td>
+        </tr>
+        <tr>
+          <td class="ct-lbl">strides</td>
+          <td class="ct-before">(1,4,12)</td>
+          <td class="ct-after">(6,2,1)</td>
+        </tr>
+        <tr>
+          <td class="ct-lbl">VRAM</td>
+          <td class="ct-before">original</td>
+          <td class="ct-after">new copy</td>
+        </tr>
+        <tr>
+          <td class="ct-lbl">access</td>
+          <td class="ct-before">jumps</td>
+          <td class="ct-after">sequential</td>
+        </tr>
+        <tr>
+          <td class="ct-lbl">values</td>
+          <td>unchanged</td>
+          <td class="ct-after">unchanged</td>
+        </tr>
+      </table>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+const D=4, H=3, W=2;
+const SPEEDS=[600,260];
+
+/* fi_val: the VALUE stored at logical [d,h,w]
+   (inherited from the transposed tensor — data doesn't change with .contiguous()) */
+const fi_val=(d,h,w)=>d*1+h*4+w*12;
+
+/* fi: the NEW contiguous flat index for [d,h,w]
+   shape (4,3,2) row-major → strides (H*W, W, 1) = (6, 2, 1) */
+const fi=(d,h,w)=>d*(H*W)+h*W+w;
+
+/* ── cube geometry ── */
+const CELL=50, GAP=6, STEP=CELL+GAP;
+const PW=W*STEP-GAP;         // 106
+const PH=H*STEP-GAP;         // 162
+const SLICE_SEP=50;
+const DEPTH=(D-1)*SLICE_SEP; // 150
+
+let FCELL=80;
+let curSpd=0, walkIv=null, walkStep=0;
+let cubeScale=1, rotX=-22, rotY=32, dragging=false, lastX=0, lastY=0;
+
+const scene=document.getElementById('cubeScene');
+const cg   =document.getElementById('cubeGroup');
+
+function applyRot(){
+  cg.style.transform=`rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(${cubeScale},${cubeScale},${cubeScale})`;
+  const r=Math.PI/180, sX=Math.sin(rotX*r), sY=Math.sin(rotY*r), cX=Math.cos(rotX*r), cY=Math.cos(rotY*r);
+  document.querySelectorAll('.cube-plane').forEach(p=>p.classList.toggle('back', cX*cY<=0));
+  const sideFlip={top:sX<0, bottom:sX<0, right:sY>0, left:sY<0};
+  Object.entries(sideFlip).forEach(([name,flip])=>{
+    document.querySelectorAll(`[data-panel="${name}"] .cface`).forEach(c=>{
+      c.style.transform=flip?'scaleX(-1)':'';
+    });
+  });
+}
+
+function autoScaleCube(){
+  const r=scene.getBoundingClientRect();
+  const avW=r.width, avH=r.height;
+  if(avW<10||avH<10) return;
+  const visW=PW*0.88+DEPTH*0.53;
+  const visH=PH*0.93+DEPTH*0.38;
+  const sx=(avW*0.72)/visW;
+  const sy=(avH*0.76)/visH;
+  cubeScale=Math.max(0.5, Math.min(sx,sy));
+  applyRot();
+}
+
+/* ── drag ── */
+scene.addEventListener('mousedown',e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; e.preventDefault(); });
+window.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  rotY+=(e.clientX-lastX)*0.45; rotX-=(e.clientY-lastY)*0.45;
+  rotX=Math.max(-85,Math.min(85,rotX)); lastX=e.clientX; lastY=e.clientY; applyRot();
+});
+window.addEventListener('mouseup',()=>dragging=false);
+scene.addEventListener('touchstart',e=>{ dragging=true; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY; },{passive:true});
+window.addEventListener('touchmove',e=>{
+  if(!dragging)return;
+  rotY+=(e.touches[0].clientX-lastX)*0.45; rotX-=(e.touches[0].clientY-lastY)*0.45;
+  rotX=Math.max(-85,Math.min(85,rotX)); lastX=e.touches[0].clientX; lastY=e.touches[0].clientY; applyRot();
+},{passive:true});
+window.addEventListener('touchend',()=>dragging=false);
+
+/* ── build cube ── */
+cg.style.cssText=`width:${PW}px; height:${PH}px;`;
+
+/* ── side faces with cell data (top/bottom/left/right) ── */
+(function(){
+  const ds=DEPTH/D, dc=Math.max(18,Math.floor(ds)-GAP);
+  [
+    {name:'top',    css:`top:0;left:0;width:${PW}px;height:${DEPTH}px;`,tr:`translateY(-${DEPTH/2}px) rotateX(-90deg)`,
+     gen:(cb)=>{for(let d=0;d<D;d++)for(let w=0;w<W;w++)cb(d,0,w,w*STEP,d*ds,CELL,dc);}},
+    {name:'bottom', css:`top:${PH}px;left:0;width:${PW}px;height:${DEPTH}px;`,tr:`translateY(-${DEPTH/2}px) rotateX(-90deg)`,
+     gen:(cb)=>{for(let d=0;d<D;d++)for(let w=0;w<W;w++)cb(d,H-1,w,w*STEP,d*ds,CELL,dc);}},
+    {name:'right',  css:`top:0;left:${PW}px;width:${DEPTH}px;height:${PH}px;`,tr:`translateX(-${DEPTH/2}px) rotateY(90deg)`,
+     gen:(cb)=>{for(let d=0;d<D;d++)for(let h=0;h<H;h++)cb(d,h,W-1,d*ds,h*STEP,dc,CELL);}},
+    {name:'left',   css:`top:0;left:0;width:${DEPTH}px;height:${PH}px;`,tr:`translateX(-${DEPTH/2}px) rotateY(-90deg)`,
+     gen:(cb)=>{for(let d=0;d<D;d++)for(let h=0;h<H;h++)cb(d,h,0,(D-1-d)*ds,h*STEP,dc,CELL);}},
+  ].forEach(({name,css,tr,gen})=>{
+    const panel=el('div');
+    panel.dataset.panel=name;
+    panel.style.cssText=`position:absolute;${css}transform-style:preserve-3d;transform:${tr};background:rgba(219,234,254,0.08);border:1px solid rgba(147,197,253,0.28);pointer-events:none;`;
+    gen((d,h,w,x,y,cw,ch)=>{
+      const c=el('div','cface');
+      const fs=Math.max(7,Math.round(Math.min(cw,ch)*0.27));
+      const fi2=Math.max(5,Math.round(Math.min(cw,ch)*0.16));
+      c.innerHTML=`<span class="cletter" style="font-size:${fs}px">${String.fromCharCode(65+fi_val(d,h,w))}</span>`+
+                  `<span class="cidx" style="font-size:${fi2}px;line-height:1">[${d},${h},${w}]</span>`;
+      c.style.cssText=`left:${x}px;top:${y}px;width:${cw}px;height:${ch}px;pointer-events:auto;`;
+      c.dataset.dhw=`${d}-${h}-${w}`;
+      c.addEventListener('mouseenter',()=>{if(!dragging&&!walkIv)hoverCell(d,h,w);});
+      c.addEventListener('mouseleave',()=>{if(!dragging&&!walkIv){clearHi();resetF();}});
+      panel.appendChild(c);
+    });
+    cg.appendChild(panel);
+  });
+}());
+
+for(let d=0;d<D;d++){
+  const zPos=DEPTH/2-d*SLICE_SEP;
+  const plane=el('div','cube-plane');
+  plane.style.cssText=`transform:translateZ(${zPos}px);width:${PW}px;height:${PH}px;`;
+  for(let h=0;h<H;h++) for(let w=0;w<W;w++){
+    const c=el('div','ccube');
+    c.style.cssText=`left:${w*STEP}px;top:${h*STEP}px;width:${CELL}px;height:${CELL}px;`;
+    c.id=`cc-${d}-${h}-${w}`;
+    /* letter = the VALUE at this logical position (same as transposed page) */
+    const ltr=String.fromCharCode(65+fi_val(d,h,w));
+    c.innerHTML=`<div class="cletter" style="font-size:${Math.round(CELL*.26)}px">${ltr}</div>`+
+                `<div class="cidx"   style="font-size:${Math.round(CELL*.17)}px">[${d},${h},${w}]</div>`;
+    c.addEventListener('mouseenter',()=>{ if(!dragging&&!walkIv) hoverCell(d,h,w); });
+    c.addEventListener('mouseleave',()=>{ if(!dragging&&!walkIv){ clearHi(); resetF(); } });
+    plane.appendChild(c);
+  }
+  const lbl=el('div','ax-lbl');
+  lbl.style.cssText=`left:${PW/2}px;top:${PH+9}px;font-size:0.7rem;color:#16a34a;transform:translateX(-50%)`;
+  lbl.innerHTML=`<span class="d-lbl-text">d=${d}</span>`;
+  plane.appendChild(lbl);
+  cg.appendChild(plane);
+}
+
+const makeAx=(t,col,css)=>{ const a=el('div','ax-lbl'); a.innerHTML=`<span style="color:${col};font-size:0.68rem">${t}</span>`; a.style.cssText=css; cg.appendChild(a); };
+makeAx('W →','#94a3b8',`left:${PW+7}px;top:${PH+2}px;transform:translateZ(${DEPTH/2}px)`);
+makeAx('H ↓','#94a3b8',`left:-30px;top:${PH/2-6}px;transform:translateZ(${DEPTH/2}px)`);
+makeAx('D →','#94a3b8',`left:${PW/2-10}px;top:-20px`);
+
+/* ── flat slices (identical logical content as transposed page) ── */
+function buildFlat(){
+  const t3=document.getElementById('tensor3d');
+  t3.innerHTML='';
+  const S=FCELL, G=6;
+  const colW=S+'px', rowH=S+'px';
+  const fsl=Math.max(12, Math.round(S*0.26))+'px';
+  const fs =Math.max(9,  Math.round(S*0.17))+'px';
+
+  for(let d=0;d<D;d++){
+    const sc=el('div','slice-container');
+    const title=el('div','slice-title'); title.textContent=`Slice  d = ${d}`; sc.appendChild(title);
+    const inner=el('div','slice-inner');
+    const rl=el('div','row-labels');
+    rl.style.gap=G+'px';
+    rl.style.paddingTop=(S*0.46)+'px';
+    for(let h=0;h<H;h++){
+      const lb=el('div','row-lbl');
+      lb.style.cssText=`height:${rowH};font-size:${fs}`;
+      lb.textContent=`h=${h}`; rl.appendChild(lb);
+    }
+    inner.appendChild(rl);
+    const ga=el('div','grid-area'); ga.style.gap=G+'px';
+    const cl=el('div','col-labels'); cl.style.cssText=`gap:${G}px;margin-bottom:2px`;
+    for(let w=0;w<W;w++){
+      const lb=el('div','col-lbl');
+      lb.style.cssText=`width:${colW};font-size:${fs}`;
+      lb.textContent=`w=${w}`; cl.appendChild(lb);
+    }
+    ga.appendChild(cl);
+    for(let h=0;h<H;h++){
+      const row=el('div','grid-row'); row.style.gap=G+'px';
+      for(let w=0;w<W;w++){
+        const c=el('div','c3d'); c.id=`c3-${d}-${h}-${w}`;
+        c.style.cssText=`width:${colW};height:${rowH}`;
+        const ltr=String.fromCharCode(65+fi_val(d,h,w));
+        c.innerHTML=`<div class="cletter" style="font-size:${fsl}">${ltr}</div>`+
+                    `<div class="cidx"   style="font-size:${fs}">[${d},${h},${w}]</div>`;
+        c.addEventListener('mouseenter',()=>{ if(!walkIv) hoverCell(d,h,w); });
+        c.addEventListener('mouseleave',()=>{ if(!walkIv){ clearHi(); resetF(); } });
+        row.appendChild(c);
+      }
+      ga.appendChild(row);
+    }
+    inner.appendChild(ga); sc.appendChild(inner); t3.appendChild(sc);
+  }
+}
+
+/* ── 1D array — new VRAM layout after .contiguous() ── */
+function build1D(){
+  const a1=document.getElementById('array1d');
+  a1.innerHTML=''; a1.style.gap='6px';
+  const S=FCELL;
+  const fsl=Math.max(12, Math.round(S*0.26))+'px';
+  const fs =Math.max(9,  Math.round(S*0.17))+'px';
+  const fs2=Math.max(8,  Math.round(S*0.14))+'px';
+  for(let i=0;i<D*H*W;i++){
+    /* new contiguous layout: fi(d,h,w) = d*6+h*2+w
+       so new VRAM[i] holds the value that was at logical pos (d=floor(i/6), h=floor((i%6)/2), w=i%2) */
+    const d=Math.floor(i/(H*W));   // solid block of H*W=6 per depth
+    const h=Math.floor((i%(H*W))/W);
+    const w=i%W;
+    const ltr=String.fromCharCode(65+fi_val(d,h,w));  // value stored at this new position
+    const c=el('div',`c1d d${d}`); c.id=`c1-${i}`;
+    c.style.cssText=`width:${S}px;height:${S}px;`;
+    c.innerHTML=`<div class="cletter" style="font-size:${fsl}">${ltr}</div>`+
+                `<div class="fi"      style="font-size:${fs}">[${i}]</div>`+
+                `<div class="ab"      style="font-size:${fs2}">+${i*4}B</div>`;
+    a1.appendChild(c);
+  }
+}
+
+/* ── auto-size flat cells ── */
+function sizeFlat(){
+  const G=6;
+  const centerW=document.querySelector('.center-panel').clientWidth-24;
+  const fromSlices=Math.floor((centerW-66-4*((W-1)*G+42))/(4*W));
+  const from1DRow =Math.floor((centerW+G)/24)-G;
+  FCELL=Math.max(52,Math.min(fromSlices,from1DRow,130));
+  buildFlat();
+  build1D();
+}
+
+window.addEventListener('resize',()=>{ autoScaleCube(); sizeFlat(); });
+
+/* ── highlight ── */
+function hoverCell(d,h,w){
+  clearHi();
+  document.getElementById(`cc-${d}-${h}-${w}`)?.classList.add('hi');
+  document.getElementById(`c3-${d}-${h}-${w}`)?.classList.add('hi');
+  document.querySelectorAll(`.cface[data-dhw="${d}-${h}-${w}"]`).forEach(c=>c.classList.add('hi'));
+  const flat=fi(d,h,w);  // new contiguous flat index
+  const c1=document.getElementById(`c1-${flat}`);
+  c1?.classList.add('hi');
+  c1?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'nearest'});
+  showF(d,h,w,flat);
+}
+
+function clearHi(){
+  document.querySelectorAll('.ccube.hi,.c3d.hi,.c1d.hi,.cface.hi').forEach(c=>c.classList.remove('hi'));
+}
+
+function showF(d,h,w,flat){
+  const p1=d*(H*W), p2=h*W;
+  document.getElementById('fcomp').innerHTML=
+    `<span class="fd">d</span>=<span class="fv">${d}</span>, `+
+    `<span class="fd">h</span>=<span class="fv">${h}</span>, `+
+    `<span class="fd">w</span>=<span class="fv">${w}</span><br>`+
+    `= <span class="fv">${d}</span>×${H*W} + <span class="fv">${h}</span>×${W} + <span class="fv">${w}</span><br>`+
+    `= <span class="fv">${p1}</span>+<span class="fv">${p2}</span>+<span class="fv">${w}</span>`+
+    ` = <span class="fr">${flat}</span>`;
+}
+function resetF(){
+  document.getElementById('fcomp').innerHTML='<span class="fph">← hover a cell</span>';
+}
+
+/* ── walk (logical order → now sequential in VRAM) ── */
+function doStep(){
+  const i=walkStep;
+  const d=Math.floor(i/(H*W));
+  const r=i%(H*W);
+  const h=Math.floor(r/W);
+  const w=r%W;
+  hoverCell(d,h,w);
+}
+function toggleWalk(){
+  const btn=document.getElementById('walkBtn');
+  if(walkIv){
+    clearInterval(walkIv); walkIv=null; walkStep=0;
+    clearHi(); resetF();
+    btn.textContent='▶ Animate'; btn.className='btn btn-full';
+  } else {
+    btn.textContent='■ Stop'; btn.className='btn btn-full stop';
+    walkStep=0; doStep();
+    walkIv=setInterval(()=>{
+      walkStep++;
+      if(walkStep>=D*H*W){
+        clearInterval(walkIv); walkIv=null; walkStep=0;
+        btn.textContent='▶ Animate'; btn.className='btn btn-full'; return;
+      }
+      doStep();
+    },SPEEDS[curSpd]);
+  }
+}
+function setSpd(idx){
+  curSpd=idx;
+  ['spd0','spd1'].forEach((id,i)=>
+    document.getElementById(id).className='btn'+(i===idx?' active-spd':''));
+  if(walkIv){
+    clearInterval(walkIv);
+    walkIv=setInterval(()=>{
+      walkStep++;
+      if(walkStep>=D*H*W){
+        clearInterval(walkIv); walkIv=null; walkStep=0;
+        document.getElementById('walkBtn').textContent='▶ Animate';
+        document.getElementById('walkBtn').className='btn btn-full'; return;
+      }
+      doStep();
+    },SPEEDS[curSpd]);
+  }
+}
+
+function el(tag,cls){ const e=document.createElement(tag); if(cls) e.className=cls; return e; }
+
+/* ── init ── */
+cg.style.opacity='0';
+requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  sizeFlat();
+  requestAnimationFrame(()=>{
+    autoScaleCube();
+    cg.style.opacity='1';
+  });
+}));
+</script>
+</body>
+</html>
