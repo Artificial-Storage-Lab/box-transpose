@@ -1,0 +1,16 @@
+# Literals audit.py found in the prose that answer to nothing, and why.
+#
+# Format: <file relative to sections/>:<literal>  # reason
+# One line per (file, literal) pair, so a second, different occurrence of the
+# same literal in the same file is covered by the same line. That is
+# deliberate: these are categories of number, not individual measurements, and
+# a file that starts quoting a real measurement will introduce a literal this
+# file does not list.
+#
+# Nothing measured belongs here. If a number could be recomputed from
+# raw_data, from the implementation, or from a committed run artifact, it
+# belongs in a generator under this directory instead. Every line below is a
+# number that a recomputation would have to invent a source for -- a
+# definition, a worked example drawn by hand, a citation year.
+#
+# No entries yet. See pipeline/quantities/readme.md for the rule.

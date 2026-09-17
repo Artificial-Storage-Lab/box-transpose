@@ -6,11 +6,32 @@ PAPER := box-transpose
 TEX   := $(PAPER).tex
 PDF   := $(PAPER).pdf
 LATEX := pdflatex -interaction=nonstopmode -halt-on-error
-DEPS  := $(wildcard *.tex) $(wildcard style/*.tex) $(wildcard style/*.sty) refs.bib
+# Sources live under sections/ too, so the dependency list has to recurse -- a
+# flat $(wildcard *.tex) only ever sees box-transpose.tex and wouldn't rebuild
+# when a section, or a file a generator rewrote, changes.
+ALLTEX := $(shell find . -name '*.tex')
+STY    := $(wildcard style/*.sty)
+DEPS   := $(ALLTEX) $(STY) refs.bib
 
-.PHONY: all clean distclean watch
+.PHONY: all clean distclean watch defs audit verify
 
 all: $(PDF)
+
+# Regenerate everything under sections/*/_generated/ from raw_data/ and src/:
+# the prose quantities, the table bodies, and the figures' TikZ.
+defs:
+	cd pipeline/quantities && for g in gen_*.py; do python3 "$$g"; done
+	cd pipeline/tables && for g in gen_*.py; do python3 "$$g"; done
+	cd pipeline/figures && for g in plot_*.py; do python3 "$$g"; done
+
+# Fail if the prose states a number that no generator or allowed.txt entry
+# accounts for. See pipeline/quantities/readme.md.
+audit:
+	cd pipeline/quantities && python3 audit.py
+
+# defs + audit + a full build, in that order -- the whole point of the
+# pipeline is that these three together are what "the paper is honest" means.
+verify: defs audit all
 
 $(PDF): $(DEPS)
 	$(LATEX) $(TEX)

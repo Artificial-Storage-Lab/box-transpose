@@ -12,6 +12,36 @@ found by Dijkstra search over axis orderings.
 Auxiliary memory is the cycle start/length arrays per step — kilobytes, not
 `O(N)`. The data itself is never copied to a second buffer.
 
+## You never type a number into the paper
+
+An experiment writes its results to `raw_data/`. A script under
+`paper/pipeline/` reads those results and writes a LaTeX macro. The paper uses
+the macro. Re-run the experiment and every number in the paper changes by
+itself.
+
+If you type a number into the prose anyway, `make audit` fails. That is what
+stops the rule from quietly rotting.
+
+```bash
+make sweep    # plan every permutation, ranks 2-6, into raw_data/
+make verify   # regenerate the paper's numbers, check, build the PDF
+```
+
+The root `Makefile` only forwards to `paper/`, which is where the real one
+lives; `cd paper && make verify` is the same thing. `paper/README.md` lists
+every target.
+
+The sweep is CPU only and seeded, so that pair of commands works on a machine
+with no GPU and reproduces the committed data exactly. `paper/pipeline/verify.py`
+re-runs every generator into a scratch tree and diffs it against what is
+committed, so a `_generated/` file that has gone stale against its data is
+reported rather than silently fixed.
+
+Section 3.2 of the paper is the worked case end to end: one claim in the
+prose, one table and one figure, all computed from
+`raw_data/plan_sweep/results.jsonl`. Read `paper/pipeline/readme.md` to see
+how, then copy the nearest generator when you add the next one.
+
 ## Install
 
 ```bash
@@ -62,10 +92,13 @@ src/                 the box_transpose package (see note below)
   _kernels/
     _load.py        lazy JIT loader for the CUDA extension
     box_kernel.cu   the in-place cycle-following kernel (scalar + float4)
+experiments/        scripts that run something and write raw_data/
+raw_data/           what they wrote, as JSON lines
 calibration/        cost-model constants: how they are fitted (see below)
   data_generation/  the measurement runners — no data ships, regenerate here
 docs/               profiling notebook and the planner animation
-paper/              LaTeX source, `cd paper && make` (see paper/README.md)
+paper/              LaTeX source, and the scripts that turn raw_data/ into its
+                    numbers. `cd paper && make verify` (see paper/README.md)
 ```
 
 The package lives directly in `src/` with no nested `box_transpose/` directory.
@@ -184,4 +217,3 @@ On large tensors the two agree closely: fixed points are typically just the two
 corner cells out of millions. On small ones they diverge visibly — for
 `(2,3,4) -> (2,1,0)` the planner returns a 336-byte plan where a 304-byte plan
 exists. Both are two steps.
-# ai-native-research-tech-stack

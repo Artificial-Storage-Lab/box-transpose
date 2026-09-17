@@ -1,4 +1,12 @@
 % Box transpose paper. Build with `make` — see README.md in this folder.
+%
+% Document skeleton only. Everything here is either a package/style decision
+% (style/) or the order sections appear in (sections/) — no prose, no floats,
+% no measured numbers live in this file.
+%
+% NOTE ON PATHS: LaTeX resolves \input relative to the directory pdflatex runs
+% in (paper/), not relative to the file doing the including. Every path here,
+% including inside nested section files, is written from that root.
 \documentclass[letterpaper,twocolumn,10pt]{article}
 
 % House preamble, carried over unchanged from the smartcontiguous paper so this
@@ -8,6 +16,18 @@
 \input{style/layout}
 \input{style/macros}
 \input{style/algorithms}
+
+% Generated number macros, from all three producers under pipeline/: the prose
+% claims (quantities/), and whatever each table and figure renderer computed
+% for its own caption. Loaded here rather than inside the section that cites
+% them, so the abstract and introduction can quote the same live values as the
+% design section. Add one \input line per _generated/*.defs.tex as you add
+% generators; pipeline/quantities/audit.py fails the build if a hand-written
+% section file carries a literal none of them accounts for.
+\input{sections/3-design/_generated/plan.defs.tex}%
+\input{sections/3-design/_generated/constants.defs.tex}%
+\input{sections/3-design/_generated/planners-table.defs.tex}%
+\input{sections/3-design/_generated/steps-fig.defs.tex}%
 
 \begin{document}
 
@@ -20,47 +40,14 @@
 
 \maketitle
 
-\begin{abstract}
-\placeholder{Abstract. One paragraph: the problem, the idea, the headline
-result.}
-\end{abstract}
-
-\section{Introduction}
-\placeholder{Introduction.}
-
-\section{Background}
-\placeholder{Permutation as a memory-movement problem; why out-of-place copies
-are the thing to avoid.}
-
-\section{Design}
-\label{sec:design}
-
-\subsection{Adjacent box swaps}
-\placeholder{A box is a run of adjacent axes treated as one unit. A swap
-exchanges two adjacent boxes, and is carried out as an in-place transpose of a
-logical $\mathit{rows} \times \mathit{cols}$ matrix, batched over $D_{pre}$ and
-vectorised over $D_{post}$.}
-
-\subsection{Planning by shortest path}
-\placeholder{The search over axis orderings, the edge cost model, and what
-$\tau$ and $D_{post}^{*}$ prune.}
-
-\subsection{Cost model}
-\label{sec:cost}
-\placeholder{Derivation of the per-step cost and how $\mu$ is calibrated.}
-
-\section{Implementation}
-\placeholder{The cycle-following kernel: scalar and float4 paths, the grid
-mapping, and the auxiliary cycle arrays.}
-
-\section{Evaluation}
-\placeholder{Setup, baselines, and results.}
-
-\section{Related Work}
-\placeholder{Related work.}
-
-\section{Conclusion}
-\placeholder{Conclusion.}
+\input{sections/0-abstract}
+\input{sections/1-introduction}
+\input{sections/2-background}
+\input{sections/3-design/main}
+\input{sections/4-implementation}
+\input{sections/5-evaluation}
+\input{sections/6-related-work}
+\input{sections/7-conclusion}
 
 \bibliographystyle{plain}
 \bibliography{refs}

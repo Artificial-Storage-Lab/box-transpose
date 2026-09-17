@@ -6,3 +6,4 @@ __pycache__/
 .pytest_cache/
 src/_kernels/_build/
 *.jsonl
+!raw_data/plan_sweep/**

@@ -9,9 +9,13 @@ __pycache__/
 # JIT-compiled CUDA extension
 src/_kernels/_build/
 
-# measurement output
+# measurement output -- bulk data is not vendored, see raw_data/README.md
 *.jsonl
 *.png
+# ...except the planner sweep the paper's pipeline builds from: CPU-only,
+# seeded and small, so it reproduces exactly and `make verify` works on a
+# fresh clone with no GPU.
+!raw_data/plan_sweep/**
 
 # folders
 calibration
