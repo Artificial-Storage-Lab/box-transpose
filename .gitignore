@@ -20,5 +20,9 @@ src/_kernels/_build/
 # folders
 calibration
 
+# slide-layout previews: QA output for the deck, regenerate with
+# `cd paper/presentations && python3 preview_deck.py`
+paper/presentations/preview/
+
 # secrets
 */*.env

@@ -17,7 +17,7 @@ ALLTEX := $(shell find . -path ./role-model -prune -o -name '*.tex' -print)
 STY    := $(wildcard style/*.sty)
 DEPS   := $(ALLTEX) $(STY) refs.bib
 
-.PHONY: all clean distclean watch defs audit verify
+.PHONY: all clean distclean watch defs audit verify deck
 
 all: $(PDF)
 
@@ -32,6 +32,13 @@ defs:
 # accounts for. See pipeline/quantities/readme.md.
 audit:
 	cd pipeline/quantities && python3 audit.py
+
+# The proposal presentation, proposal.pptx, for upload to Google Slides. It
+# reads the same generated macros the paper's prose cites, so it cannot state
+# a number the paper does not. Depends on defs for that reason.
+deck: defs
+	cd presentations && python3 render_equation.py && python3 build_deck.py
+	cd presentations && python3 preview_deck.py --check
 
 # defs + audit + a full build, in that order -- the whole point of the
 # pipeline is that these three together are what "the paper is honest" means.

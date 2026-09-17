@@ -38,19 +38,19 @@ BOTH = "KJ, AN"
 SCHEDULE: list[tuple[int, str, str]] = [
     (1, "Proposal submitted. Planner sweep committed and reproducible.", BOTH),
     (2, "Re-derive $\\tau$ from a $D_{post}$ micro-benchmark on the "
-        "evaluation GPU; restore graph pruning.", "AN"),
+        "evaluation GPU, then restore graph pruning.", "AN"),
     (3, "Re-fit $\\mu$ against the $\\tau$-pruned graph. Report the cost "
         "model's error against measured throughput.", "KJ"),
-    (4, "Close the fixed-point gap: make search edge weights reflect real "
-        "cycle structure, and quantify how much the chosen plans change.", "KJ"),
+    (4, "Close the fixed-point gap. Make search edge weights reflect real "
+        "cycle structure and quantify how far the chosen plans move.", "KJ"),
     (5, "Correctness suite across ranks and shapes, gating every "
         "measurement that follows.", "AN"),
-    (6, "End-to-end benchmark against the out-of-place baseline: latency "
-        "and peak memory.", "AN"),
+    (6, "End-to-end benchmark against the out-of-place baseline, measuring "
+        "latency and peak memory.", "AN"),
     (7, "Head-to-head against the closest prior systems on their reported "
         "shapes.", BOTH),
     (8, "Derive $D_{post}^{*}$ from the comparison and enable routing.", "KJ"),
-    (9, "Draft the report: every number generated from committed data.", BOTH),
+    (9, "Draft the report, with every number generated from committed data.", BOTH),
     (10, "Final report and presentation.", BOTH),
 ]
 

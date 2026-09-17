@@ -6,9 +6,9 @@
 # one does. The one addition is `sweep`, below.
 PAPER := paper
 
-.PHONY: all defs audit verify watch clean distclean sweep
+.PHONY: all defs audit verify watch clean distclean deck sweep
 
-all defs audit verify watch clean distclean:
+all defs audit verify watch clean distclean deck:
 	$(MAKE) -C $(PAPER) $@
 
 # Re-run the experiment the paper's numbers are computed from. Deliberately
