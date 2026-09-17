@@ -55,7 +55,7 @@ RELATIVE = re.compile(r"\d*\.?\d+\s*\\(?:line|text|column|page)width")
 # inventing a tie rather than recording one. List yours here as you add them,
 # so that adding one is as deliberate as adding an allowed.txt line -- e.g.
 # NAMES = ["GPT-4", "Llama 3", "A100"].
-NAMES: list[str] = []
+NAMES: list[str] = ["RTX PRO 6000 Blackwell"]
 COMMENT = re.compile(r"(?<!\\)%.*$")
 # A list marker in running prose: "(1) the number of passes, (2) control over".
 ENUM = re.compile(r"\((?:1?\d)\)")

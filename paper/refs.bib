@@ -1,13 +1,138 @@
-% Bibliography for the box transpose paper. Style is plain.bst, matching the
-% smartcontiguous paper. Add real entries here and \cite them from main.tex.
+% Bibliography for the box transpose proposal. Style is plain.bst.
 %
-% Left deliberately empty of real citations rather than pre-filled with
-% half-remembered metadata — wrong author lists and page numbers are harder to
-% notice than missing ones. The entry below is a syntax template; delete it.
+% Every entry below is copied verbatim from role-model/references.bib, the
+% bibliography of the Cycle Splitter paper in this repository. They are not
+% re-typed and not reconstructed from memory: copying is what keeps the author
+% lists, venues, pages and years correct, which is exactly what a wrong
+% citation gets wrong in a way nobody notices.
+%
+% Add new entries the same way -- from the publisher's own record, not from
+% recollection. A citation with a plausible but wrong year is worse than a
+% missing one.
 
-@misc{template-entry,
-  author       = {Lastname, Firstname},
-  title        = {Title of the Work},
-  howpublished = {Venue or URL},
-  year         = {2026},
+@inproceedings{catanzaro2014decomposition,
+  author    = {Catanzaro, Bryan and Keller, Alexander and Garland, Michael},
+  title     = {A Decomposition for In-place Matrix Transposition},
+  booktitle = {Proceedings of the 19th ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming (PPoPP '14)},
+  year      = {2014},
+  address   = {Orlando, FL, USA},
+  pages     = {193--206},
+  publisher = {ACM},
+  note      = {DOI \url{https://doi.org/10.1145/2555243.2555253}. Also issued as ACM SIGPLAN Notices 49(8):193--206.}
+}
+
+@inproceedings{sung2012pttwac,
+  author    = {Sung, I-Jui and Liu, Geng Daniel and Hwu, Wen-mei W.},
+  title     = {{DL}: A Data Layout Transformation System for Heterogeneous Computing},
+  booktitle = {2012 Innovative Parallel Computing (InPar)},
+  year      = {2012},
+  month     = may,
+  pages     = {1--11},
+  publisher = {IEEE},
+  note      = {DOI \url{https://doi.org/10.1109/InPar.2012.6339606}.}
+}
+
+@article{gustavson2012cycleleader,
+  author  = {Gustavson, Fred and Karlsson, Lars and K{\aa}gstr{\"o}m, Bo},
+  title   = {Parallel and Cache-Efficient In-Place Matrix Storage Format Conversion},
+  journal = {ACM Transactions on Mathematical Software},
+  volume  = {38},
+  number  = {3},
+  pages   = {17:1--17:32},
+  year    = {2012},
+  note    = {Article 17. DOI \url{https://doi.org/10.1145/2168773.2168775}.}
+}
+
+@article{wu2025eithot,
+  author  = {Wu, Chun-Yu and Tu, Chih-Chieh and Cheng, Kai-Jung and Lee, Che-Rung},
+  title   = {{EITHOT}: Efficient In-place Transposition of High Order Tensors on {GPU}s},
+  journal = {ACM Transactions on Parallel Computing},
+  volume  = {12},
+  number  = {1},
+  pages   = {1--22},
+  year    = {2025},
+  month   = feb,
+  note    = {DOI \url{https://doi.org/10.1145/3711871}.}
+}
+
+@inproceedings{cheng2025ittpd,
+  author    = {Cheng, Kai-Jung and Lee, Che-Rung},
+  title     = {{ITTPD}: In-place Tensor Transposition with Permutation Decomposition on {GPU}s},
+  booktitle = {Proceedings of the International Conference on High Performance Computing in Asia-Pacific Region (HPCAsia '25)},
+  year      = {2025},
+  address   = {Hsinchu, Taiwan},
+  pages     = {90--98},
+  note      = {DOI \url{https://doi.org/10.1145/3712031.3712033}.}
+}
+
+@article{gomezluna2016inplace,
+  author  = {G{\'o}mez-Luna, Juan and Sung, I-Jui and Chang, Li-Wen and Gonz{\'a}lez-Linares, Jos{\'e} Mar{\'i}a and Guil, Nicol{\'a}s and Hwu, Wen-mei W.},
+  title   = {In-Place Matrix Transposition on {GPU}s},
+  journal = {IEEE Transactions on Parallel and Distributed Systems},
+  volume  = {27},
+  number  = {3},
+  pages   = {776--788},
+  year    = {2016},
+  note    = {DOI \url{https://doi.org/10.1109/TPDS.2015.2412549}.}
+}
+
+@misc{pytorch_permute_docs,
+  author = {{PyTorch Contributors}},
+  title  = {\texttt{torch.permute}},
+  year   = {2026},
+  howpublished = {\url{https://docs.pytorch.org/docs/2.13/generated/torch.permute.html}},
+  note   = {PyTorch 2.13 documentation. Accessed August 2026. Archived at \url{https://web.archive.org/web/20260808203715/https://docs.pytorch.org/docs/2.13/generated/torch.permute.html}.}
+}
+
+@misc{pytorch_transpose_docs,
+  author = {{PyTorch Contributors}},
+  title  = {\texttt{torch.transpose}},
+  year   = {2026},
+  howpublished = {\url{https://docs.pytorch.org/docs/2.13/generated/torch.transpose.html}},
+  note   = {PyTorch 2.13 documentation. Accessed August 2026. Archived at \url{https://web.archive.org/web/20260830062342/https://docs.pytorch.org/docs/2.13/generated/torch.transpose.html}.}
+}
+
+@inproceedings{rajbhandari2020zero,
+  author    = {Rajbhandari, Samyam and Rasley, Jeff and Ruwase, Olatunji and He, Yuxiong},
+  title     = {{ZeRO}: Memory Optimizations Toward Training Trillion Parameter Models},
+  booktitle = {Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis (SC20)},
+  year      = {2020},
+  pages     = {20:1--20:16},
+  publisher = {IEEE/ACM},
+  note      = {Article 20. DOI \url{https://doi.org/10.1109/SC41405.2020.00024}. Also arXiv:1910.02054. The fragmentation claim is supported by its Section 3, ``Managing fragmented Memory''.}
+}
+
+@book{dummit2003abstract,
+  author    = {Dummit, David S. and Foote, Richard M.},
+  title     = {Abstract Algebra},
+  edition   = {3rd},
+  year      = {2003},
+  publisher = {John Wiley \& Sons},
+  address   = {Hoboken, NJ},
+  note      = {Section 1.3 gives the decomposition of a permutation into disjoint cycles, unique up to the order of the cycles.}
+}
+
+@misc{pytorch_contiguous_2016,
+  author = {Paszke, Adam},
+  title  = {Add more {Tensor} methods},
+  year   = {2016},
+  month  = jun,
+  note   = {PyTorch GitHub commit \texttt{60f9834}, \url{https://github.com/pytorch/pytorch/commit/60f9834ac6ccb8721548e779d1d3db922d06e6e6}, authored 9 June 2016. Registers \texttt{contiguous} in the tensor method table of \texttt{torch/csrc/generic/Tensor.cpp}.}
+}
+
+@misc{pytorch_rfc_comms_2026,
+  author = {Wen, Ke},
+  title  = {[{RFC}] Communication primitives for non-contiguous tensors},
+  year   = {2026},
+  month  = mar,
+  howpublished = {\url{https://github.com/pytorch/pytorch/issues/177427}},
+  note   = {PyTorch GitHub issue \#177427, opened 13 March 2026. Source of every RFC quotation in this paper. Accessed August 2026.}
+}
+
+@misc{pytorch_2x,
+  author = {{PyTorch Team}},
+  title  = {{PyTorch} 2.x: Faster, More Pythonic and As Dynamic As Ever},
+  year   = {2026},
+  howpublished = {\url{https://pytorch.org/get-started/pytorch-2-x/}},
+  note   = {Accessed August 2026. Archived at \url{https://web.archive.org/web/20260819091658/https://pytorch.org/get-started/pytorch-2-x/}.}
 }

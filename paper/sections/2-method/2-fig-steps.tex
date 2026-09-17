@@ -12,14 +12,14 @@
 \begin{figure}[!t]
 \centering
 \begin{tikzpicture}
-\node[inner sep=2pt] (figsteps) {\input{sections/3-design/_generated/steps-fig.tex}};
+\node[inner sep=2pt] (figsteps) {\input{sections/2-method/_generated/steps-fig.tex}};
 \draw[black,line width=0.5pt,rounded corners=2pt]
   (figsteps.south west) rectangle (figsteps.north east);
 \end{tikzpicture}
 \caption{\capheadline{Median swaps per permutation against tensor rank.}
 \stepsFigRanks{} ranks, both planners on the same shapes. The baseline's cost
-climbs with the number of adjacent transpositions a permutation needs; the
-search stays flat, ending at \stepsFigTopSearch{} swaps against
-\stepsFigTopBaseline{} at rank~\stepsFigTopRank{}.}
+climbs with the number of adjacent transpositions a permutation needs. The
+search stays flat. At rank~\stepsFigTopRank{} it ends at
+\stepsFigTopSearch{} swaps against \stepsFigTopBaseline{}.}
 \label{fig:steps}
 \end{figure}

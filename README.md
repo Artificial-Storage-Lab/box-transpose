@@ -23,7 +23,7 @@ If you type a number into the prose anyway, `make audit` fails. That is what
 stops the rule from quietly rotting.
 
 ```bash
-make sweep    # plan every permutation, ranks 2-6, into raw_data/
+make sweep    # sample shape/permutation pairs, ranks 2-6, into raw_data/
 make verify   # regenerate the paper's numbers, check, build the PDF
 ```
 
@@ -37,10 +37,14 @@ re-runs every generator into a scratch tree and diffs it against what is
 committed, so a `_generated/` file that has gone stale against its data is
 reported rather than silently fixed.
 
-Section 3.2 of the paper is the worked case end to end: one claim in the
+Section 2.3 of the write-up is the worked case end to end: one claim in the
 prose, one table and one figure, all computed from
 `raw_data/plan_sweep/results.jsonl`. Read `paper/pipeline/readme.md` to see
 how, then copy the nearest generator when you add the next one.
+
+`paper/` currently holds the CS 8045 project proposal, structured to the six
+components its guidelines grade; `paper/README.md` maps each component to its
+section.
 
 ## Install
 

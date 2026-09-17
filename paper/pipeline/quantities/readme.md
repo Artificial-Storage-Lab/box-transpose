@@ -36,7 +36,7 @@ Copy `gen_plan_defs.py` (reads `raw_data/`) or `gen_constants_defs.py`
 (reads `src/_plan.py`). Point it at your data, write to
 `generated("<section>")`, and add an `\input` line to `box-transpose.tex`.
 
-Macro names must be letters only — `\planRankHi`, not `\planRank6`. TeX
+Macro names must be letters only. Write `\planRankHi`, not `\planRank6`. TeX
 cannot put a digit in a command name.
 
 ## What goes in allowed.txt

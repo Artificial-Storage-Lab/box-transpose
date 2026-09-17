@@ -1,0 +1,72 @@
+\section{Statement of the Problem}
+\label{sec:problem}
+
+\subsection{Background}
+
+Modern deep learning workloads run close to the capacity limit of GPU memory.
+The pressure comes from model parameters and activations, and also from
+intermediate tensor transformations. Tensor layout conversion is a common
+example.
+
+Operations such as \texttt{permute}~\cite{pytorch_permute_docs} and
+\texttt{transpose}~\cite{pytorch_transpose_docs} in
+PyTorch~\cite{pytorch_2x} reorder the logical axes of a tensor without moving
+any values. They only change the tensor's metadata, so they are free. What
+they leave behind is a strided layout that is no longer contiguous.
+
+Many downstream operations require a contiguous layout, and others merely run
+slower on a strided one. A layout mismatch between what one operation produces
+and what the next one needs is therefore routine. A recent PyTorch RFC reports
+that non-contiguous tensors arise across sequence, tensor and pipeline
+parallelism, and that several communication primitives require contiguous
+inputs~\cite{pytorch_rfc_comms_2026}.
+
+\subsection{The cost of the standard fix}
+
+PyTorch resolves a mismatch with
+\texttt{.contiguous()}~\cite{pytorch_contiguous_2016}. It allocates a new
+tensor and copies every element into its new position. The copy is attractive
+because it is highly parallel. Each output position can be computed
+independently, so the GPU can use all of its threads.
+
+The cost is memory. The original tensor and the new one must both exist until
+the copy finishes. A single conversion can therefore approach twice the
+footprint of the tensor being converted. On a large tensor that is enough to
+cause an out-of-memory failure, and the short-lived allocation also fragments
+the GPU heap~\cite{rajbhandari2020zero,pytorch_rfc_comms_2026}.
+
+The workaround turns a layout problem into a peak-memory problem. Our goal is
+to remove the second buffer instead, by converting the tensor in place.
+
+\subsection{The problem, formally}
+
+Let $A$ be a tensor of rank $r$ with shape $(d_0, \ldots, d_{r-1})$, stored
+contiguously in row-major order, and let $\pi$ be a permutation of the $r$
+axis positions. The \emph{in-place permutation problem} is to rewrite the
+buffer holding $A$ so that it holds the tensor $A^{\pi}$ with shape
+$(d_{\pi(0)}, \ldots, d_{\pi(r-1)})$, contiguous in the same row-major order,
+using auxiliary space $o(N)$ where $N = \prod_i d_i$.
+
+The constraint that makes this hard is that no value may be overwritten before
+it has been read. The classical solution is cycle
+following~\cite{gustavson2012cycleleader,dummit2003abstract}. A permutation
+decomposes into disjoint cycles, and rotating the values along each cycle
+moves every element exactly once with no second buffer. Cycle following is a
+poor fit for a GPU, because cycle discovery is sequential and the resulting
+accesses are irregular~\cite{catanzaro2014decomposition,gomezluna2016inplace}.
+
+\subsection{Objectives}
+
+\begin{enumerate}
+\item Decompose an arbitrary $\pi$ into a sequence of operations, each of
+  which is a single in-place matrix transpose. The cycle-following machinery
+  that is well understood in two dimensions then applies unchanged at every
+  step.
+\item Choose the decomposition that moves the fewest bytes, rather than
+  accepting the first one found, by searching the space of decompositions
+  under an explicit cost model.
+\item Keep auxiliary space independent of $N$. The only per-step state is the
+  cycle metadata, which must stay at kilobyte scale for tensors of any size.
+\item Beat the memory ceiling of \texttt{.contiguous()} on real shapes, and be
+  no slower than it where both fit.
+\end{enumerate}

@@ -54,11 +54,11 @@ def main() -> None:
     ax.legend([(label, color, marker) for _p, label, color, marker in SERIES],
               x=ranks[0] - 0.2, y=yhi * 0.96)
 
-    emit(generated("3-design") / "steps-fig.tex",
+    emit(generated("2-method") / "steps-fig.tex",
          document(ax.out, SRC, NOTE, WIDTH, HEIGHT))
 
     top_rank = ranks[-1]
-    emit_defs(generated("3-design") / "steps-fig.defs.tex", SRC, NOTE, {
+    emit_defs(generated("2-method") / "steps-fig.defs.tex", SRC, NOTE, {
         "stepsFigRanks": str(len(ranks)),
         "stepsFigTopRank": str(top_rank),
         "stepsFigTopBaseline": f"{med[('adjacent_baseline', top_rank)]:g}",

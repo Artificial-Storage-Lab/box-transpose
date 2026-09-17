@@ -26,7 +26,7 @@ def main() -> None:
     tau = constant(PLAN, "TAU")
     d_post_star = constant(PLAN, "D_POST_STAR")
 
-    emit_defs(generated("3-design") / "constants.defs.tex", SRC, NOTE, {
+    emit_defs(generated("2-method") / "constants.defs.tex", SRC, NOTE, {
         "costMu": f"{mu:g}",
         "costTau": str(tau),
         "costDPostStar": str(d_post_star),

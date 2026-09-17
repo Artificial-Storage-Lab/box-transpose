@@ -1,8 +1,16 @@
-% Box transpose paper. Build with `make` — see README.md in this folder.
+% Box transpose — CS 8045 project proposal. Build with `make` — see README.md.
 %
 % Document skeleton only. Everything here is either a package/style decision
 % (style/) or the order sections appear in (sections/) — no prose, no floats,
 % no measured numbers live in this file.
+%
+% Section order follows the six components the proposal guidelines grade:
+%   1 title page            -> \maketitle plus sections/0-title
+%   2 statement of problem  -> sections/1-problem-statement
+%   3 difficulty and method -> sections/2-method
+%   4 simulation setting    -> sections/3-simulation-setting
+%   5 milestones            -> sections/4-milestones
+%   6 references            -> \bibliography, below
 %
 % NOTE ON PATHS: LaTeX resolves \input relative to the directory pdflatex runs
 % in (paper/), not relative to the file doing the including. Every path here,
@@ -17,37 +25,40 @@
 \input{style/macros}
 \input{style/algorithms}
 
-% Generated number macros, from all three producers under pipeline/: the prose
+% Generated number macros, from the producers under pipeline/: the prose
 % claims (quantities/), and whatever each table and figure renderer computed
 % for its own caption. Loaded here rather than inside the section that cites
-% them, so the abstract and introduction can quote the same live values as the
-% design section. Add one \input line per _generated/*.defs.tex as you add
-% generators; pipeline/quantities/audit.py fails the build if a hand-written
-% section file carries a literal none of them accounts for.
-\input{sections/3-design/_generated/plan.defs.tex}%
-\input{sections/3-design/_generated/constants.defs.tex}%
-\input{sections/3-design/_generated/planners-table.defs.tex}%
-\input{sections/3-design/_generated/steps-fig.defs.tex}%
+% them, so any section can quote the same live values. Add one \input line per
+% _generated/*.defs.tex as you add generators; pipeline/quantities/audit.py
+% fails the build if a hand-written section file carries a literal none of
+% them accounts for.
+\input{sections/2-method/_generated/plan.defs.tex}%
+\input{sections/2-method/_generated/constants.defs.tex}%
+\input{sections/2-method/_generated/planners-table.defs.tex}%
+\input{sections/2-method/_generated/steps-fig.defs.tex}%
+\input{sections/4-milestones/_generated/timeline-table.defs.tex}%
 
 \begin{document}
 
-\title{Box Transpose: In-Place N-Dimensional Permutation on GPUs}
+\title{\Large \bf Box Transpose: In-Place N-Dimensional Tensor Permutation on GPUs}
 
+% One author block, not two. \and would set the course line as a second
+% author, which is what it looked like. Affiliation and the rest of the team
+% are in sections/0-title, where a \placeholder can be a block without
+% stretching the title.
 \author{
-{\rm Kaveen Jayamanna}\\
-\placeholder{Affiliation}
+{\rm Kaveen Jayamanna \quad Alexis Newman}\\
+Kennesaw State University\\
+{\rm CS 8045 Advanced Algorithms --- Project Proposal}
 }
 
 \maketitle
 
-\input{sections/0-abstract}
-\input{sections/1-introduction}
-\input{sections/2-background}
-\input{sections/3-design/main}
-\input{sections/4-implementation}
-\input{sections/5-evaluation}
-\input{sections/6-related-work}
-\input{sections/7-conclusion}
+\input{sections/0-title}
+\input{sections/1-problem-statement}
+\input{sections/2-method/main}
+\input{sections/3-simulation-setting}
+\input{sections/4-milestones/main}
 
 \bibliographystyle{plain}
 \bibliography{refs}

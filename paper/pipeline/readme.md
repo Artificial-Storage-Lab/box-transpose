@@ -33,14 +33,20 @@ The chart is drawn by the paper's own build. So its labels come out in the
 paper's fonts at the paper's sizes, and it stays sharp at any zoom. Exported
 PNGs drift out of date and never quite match the text around them.
 
-## Two sources, not one
+## Three sources, not one
 
 Most generators read `raw_data/`. `quantities/gen_constants_defs.py` reads
 `src/_plan.py` instead, lifting `MU`, `TAU` and `D_POST_STAR` straight out of
 the implementation with `constant()` / `number()`. The rule is the same either
-way: the paper states nothing that nothing recomputes, and a constant that is
-retuned — or renamed — moves the sentence or fails the build rather than
-leaving the paper describing code that no longer exists.
+way. The paper states nothing that nothing recomputes. A constant that is
+retuned moves the sentence, and one that is renamed fails the build, rather
+than leaving the paper describing code that no longer exists.
+
+`tables/gen_table_timeline.py` reads neither. The project schedule is
+authorial, since nobody measures it, so the plan lives in a `SCHEDULE` list at
+the top of that script. It is still generated rather than typed into the section,
+because week numbers are numbers: a hand-written timeline would put a dozen
+literals into the prose for `audit.py` to be told to ignore one by one.
 
 ## Commands
 
@@ -61,9 +67,10 @@ experiments/plan_sweep/run.py  ->  raw_data/plan_sweep/results.jsonl
                                      ->  tables/      the per-rank breakdown
                                      ->  figures/     the same medians, as a chart
 src/_plan.py                   ->  quantities/  mu, tau, D_post*
+SCHEDULE (in the renderer)     ->  tables/      the milestone timeline
 ```
 
-Section~3 is the worked case. Everything under `sections/` that is still a
+Section 2.3 is the worked case. Everything under `sections/` that is still a
 `\placeholder` has no generator yet, which is fine — `audit.py` only demands
 that the numbers which *are* in the prose answer to something.
 

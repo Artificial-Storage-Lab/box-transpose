@@ -9,7 +9,11 @@ LATEX := pdflatex -interaction=nonstopmode -halt-on-error
 # Sources live under sections/ too, so the dependency list has to recurse -- a
 # flat $(wildcard *.tex) only ever sees box-transpose.tex and wouldn't rebuild
 # when a section, or a file a generator rewrote, changes.
-ALLTEX := $(shell find . -name '*.tex')
+#
+# role-model/ is pruned: it is a separate, finished paper kept here to read,
+# not a source of this one. Without the prune its ~40 .tex files land in this
+# document's dependency list and touching any of them rebuilds our PDF.
+ALLTEX := $(shell find . -path ./role-model -prune -o -name '*.tex' -print)
 STY    := $(wildcard style/*.sty)
 DEPS   := $(ALLTEX) $(STY) refs.bib
 

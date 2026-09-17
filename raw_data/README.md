@@ -22,8 +22,8 @@ beyond a fixed seed, so it is small and reproduces byte for byte from a fresh
 clone. Committing it is what lets `cd paper && make verify` work on a machine
 with no CUDA.
 
-Measured throughput data is the opposite — hundreds of megabytes, and specific
-to the GPU that produced it. It is not vendored. `calibration/` reads it from
+Measured throughput data is the opposite. It runs to hundreds of megabytes
+and is specific to the GPU that produced it. It is not vendored. `calibration/` reads it from
 `$BT_PILOT_ROOT` and `$BT_BENCH_ROOT` instead, and its scripts skip rather
 than fail when those are unset. See `calibration/data_generation/README.md`.
 

@@ -1,0 +1,212 @@
+\section{Problem Difficulty Analysis and Proposed Method}
+\label{sec:method}
+
+\subsection{Why this is hard}
+\label{sec:difficulty}
+
+Three things make in-place permutation of an N-D tensor harder than in-place
+matrix transposition.
+
+\subsubsection{The permutation is not a single transpose}
+
+Cycle following works on a matrix because the index map has a closed form.
+Position $p$ of an $m \times n$ matrix moves to
+$(p \bmod n)\,m + \lfloor p/n \rfloor$, and the orbits of that map partition
+the buffer. An arbitrary $\pi$ over $r$ axes induces an index map with no such
+closed form. It can still be decomposed into disjoint
+cycles, because every permutation can~\cite{dummit2003abstract}. But computing
+those cycles means materialising the map. That is $\Theta(N)$ work and
+$\Theta(N)$ state, which defeats the purpose.
+
+\subsubsection{The decomposition is not unique, and the choices are not equal}
+
+Any $\pi$ can be reached by a sequence of simpler moves, and there are many
+such sequences. They are not interchangeable. Each move rewrites the whole
+buffer, so a decomposition of $k$ steps pays roughly $k$ passes over memory.
+A decomposition that is short in steps may still move more bytes than a longer
+one, because what a step actually moves depends on how many positions it
+leaves fixed. Choosing well is a search problem rather than a bookkeeping one.
+
+\subsubsection{Memory access, not arithmetic, is the cost}
+
+A permutation does no arithmetic. Every step is bound by how the memory system
+responds to the access pattern that step produces. That response is strongly
+non-linear in the stride. A step whose innermost contiguous run is long enough
+to fill a cache line runs at a large multiple of the throughput of one whose
+run is short. A cost model for this cannot be derived from operation counts.
+It has to be calibrated against the hardware.
+
+The search space is $r!$ orderings of the axes, with an edge between two
+orderings for every move that connects them. An exhaustive comparison is out
+of reach at the ranks that matter.
+
+\subsection{Proposed method: adjacent box swaps}
+\label{sec:boxes}
+
+We propose decomposing $\pi$ into a sequence of \emph{adjacent box swaps}.
+
+A \emph{box} is one or more neighbouring axes treated as a single unit. Those
+axes are adjacent in a row-major layout, so their extents multiply into one
+logical extent and the group behaves exactly like a single axis of that size.
+A \emph{swap} exchanges two adjacent boxes.
+
+The point of the construction is what a swap reduces to. Fix a split of the
+axis list into a prefix, a left box, a right box and a suffix, with extents
+$D_{pre}$, $\mathit{rows}$, $\mathit{cols}$ and $D_{post}$. Exchanging the two
+boxes is exactly an in-place transpose of a logical
+$\mathit{rows} \times \mathit{cols}$ matrix. It is performed independently for
+each of the $D_{pre}$ leading positions, and each element of it is a
+contiguous run of $D_{post}$ values. Every step of the decomposition is
+therefore a problem we already know how to solve in place, and the
+two-dimensional cycle-following result applies unchanged at every step.
+
+$D_{post}$ also determines whether a step is fast. A large $D_{post}$ means
+each moved element is a long contiguous run, which is what the memory system
+rewards. When it is divisible by the vector width, the kernel moves four
+values at a time instead of one.
+
+\subsection{Choosing the decomposition by shortest path}
+\label{sec:planning}
+
+A permutation can always be reached by bubbling each axis into position with
+single-axis swaps. Treating a run of adjacent axes as one box instead turns
+the decomposition into a shortest-path problem over axis orderings. The search
+is then free to spend one swap where the baseline spends several.
+
+We build a graph whose vertices are orderings of the axes and whose edges are
+legal box swaps. Each edge is weighted by the bytes that swap moves, divided
+by a calibrated throughput. Dijkstra from the identity ordering to $\pi$ then
+returns the cheapest decomposition under the cost model rather than merely a
+correct one.
+
+To measure what that freedom is worth we sample shape and permutation pairs
+from the space defined in Section~\ref{sec:benchmark} and plan each of them
+both ways. The sweep covers \planRanks{} ranks, \planRankLo{} through
+\planRankHi{}, at \planElements{} elements throughout. It draws
+\planShapesPerRank{} shapes per rank and up to \planPermsPerShape{}
+permutations per shape, giving \planCases{} pairs and \planPlans{} plans. The
+comparison is paired. Both planners see the same shape and the same
+permutation, and every rank holds the element count fixed, so a difference in
+bytes moved is a difference in the decomposition rather than in the tensor.
+
+Across the sweep the search issues \planStepFactor{}x fewer swaps than the
+adjacent baseline and moves \planByteFactor{}x fewer bytes at the median. It
+reaches \planByteFactorMax{}x on the permutation where it helps most. The
+margin widens with rank, as Figure~\ref{fig:steps} shows. At rank
+\planRankHi{} the median permutation costs the baseline
+\planStepsBaselineTop{} swaps and the search \planStepsSearchTop{}.
+Table~\ref{tab:planners} gives the breakdown. \planBlockShare{}\% of the swaps
+the search selects bundle more than one axis into a box. That is the move the
+baseline cannot make, and it is where the difference comes from.
+
+The auxiliary cost of a plan is its cycle metadata, and it does not scale with
+the tensor. The largest plan in the sweep needs \planAuxWorst{} bytes, which
+is \planAuxPercent{}\% of the data it permutes. The data itself is never
+copied to a second buffer. That is the objective the whole construction exists
+to serve.
+
+\input{sections/2-method/2-tab-planners}
+\input{sections/2-method/2-fig-steps}
+
+\subsection{Feasibility}
+\label{sec:feasibility}
+
+A working prototype exists, and the numbers above come from it rather than
+from an estimate. The planner is implemented in \texttt{src/\_plan.py} and the
+cycle-following kernel in \texttt{src/\_kernels/box\_kernel.cu}, with both a
+scalar and a vectorised path. What remains is calibration and evaluation
+rather than construction. That is why the timeline in
+Section~\ref{sec:milestones} is weighted towards measurement.
+
+Edge weight is bytes moved divided by a calibrated throughput $\mu$, currently
+\costMu{}~GB/s. Two thresholds gate the search. $\tau$ is the smallest
+$D_{post}$ at which an edge is worth considering. $D_{post}^{*}$ is the point
+at which box following beats a cycle splitter. Both currently sit at
+\costTau{} and \costDPostStar{}, so the pruning they describe is
+\costPruning{}. Re-deriving them on the evaluation hardware is a milestone in
+its own right.
+
+\placeholder{One known gap to close before the final report. During the search
+\texttt{estimated\_cycle\_info} reports no fixed points, so every edge weighs
+the same and the search minimises swap count rather than bytes. Exact counts
+are filled in afterwards, so the reported numbers are accurate for the plans
+chosen, but they are not what the search optimised. Quantify the resulting
+gap.}
+
+\subsection{Why this improves on existing work}
+\label{sec:improvement}
+
+We compare against prior work along the dimensions that matter for this
+problem. These are the number of full-tensor passes, the auxiliary memory a
+method needs, how sensitive its cost is to the tensor shape, and whether it
+supports arbitrary N-D permutations.
+
+\textbf{Data movement.} Most GPU-oriented approaches trade extra data movement
+for regular, well-behaved
+kernels~\cite{catanzaro2014decomposition,gomezluna2016inplace,wu2025eithot,cheng2025ittpd}.
+They may read and write the tensor several times even when the permutation
+itself requires moving each element once. Cycle following is the exception,
+since it moves each element exactly once~\cite{gustavson2012cycleleader}, but
+the original formulation is built around individual cycles and does not give
+an efficient GPU implementation for arbitrary N-D permutations. Our proposal
+sits with the first group and accepts multiple passes. Its claim is that it
+takes fewer of them than a fixed decomposition rule does, and the sweep above
+is the evidence.
+
+\textbf{Auxiliary memory.} Existing methods size their temporary storage from
+the tensor shape or from the decomposition strategy. Catanzaro et
+al.~\cite{catanzaro2014decomposition} need storage related to the larger
+dimension. Gomez-Luna et al.~\cite{gomezluna2016inplace} may pad an axis to
+obtain a usable factorization, so the workspace depends on the input.
+\textsc{ITTPD}~\cite{cheng2025ittpd} exposes a memory-budget parameter, but
+uses it to set how many batch instances its primitive kernels process. Our
+auxiliary state is the cycle metadata of the selected steps, which the sweep
+measures at \planAuxPercent{}\% of the tensor in the worst case.
+
+\textbf{Shape sensitivity.} Several of these designs rely on cache locality to
+reach peak
+throughput~\cite{catanzaro2014decomposition,gomezluna2016inplace,cheng2025ittpd}.
+A shape that yields short or irregular accesses costs them disproportionately.
+A search over decompositions attacks this directly, because the cost model
+weights an edge by the access pattern that edge produces. Whether that
+translates into more stable measured runtime is an open question and is a
+deliverable of the evaluation.
+
+\textbf{Permutation coverage.} Catanzaro et
+al.~\cite{catanzaro2014decomposition}, Gustavson et
+al.~\cite{gustavson2012cycleleader} and Gomez-Luna et
+al.~\cite{gomezluna2016inplace} define their kernels for two-dimensional
+permutations or single axis swaps. Data layout transformation systems apply
+the same machinery to strided layouts~\cite{sung2012pttwac}. None of them
+addresses an arbitrary permutation of an arbitrary rank directly.
+\textsc{EITHOT}~\cite{wu2025eithot} and
+\textsc{ITTPD}~\cite{cheng2025ittpd} do, and \textsc{ITTPD} decomposes the
+permutation before transposing it, which is the same overall shape of idea as
+ours.
+
+\textbf{What is different here.} Against \textsc{ITTPD} in particular, our
+proposal differs in two ways, and these are the claims we intend to defend.
+
+\begin{enumerate}
+\item \textbf{Boxes, not axes.} A step may exchange two \emph{groups} of
+  adjacent axes rather than two axes. This strictly enlarges the set of
+  reachable decompositions. The measurements above show the search takes that
+  option on \planBlockShare{}\% of the steps it selects, so it is not a
+  generalisation that goes unused.
+\item \textbf{Search under a calibrated cost model, not a fixed rule.} The
+  decomposition is chosen by shortest path over a graph whose weights are
+  measured throughput. The planner therefore adapts to the hardware it is
+  calibrated on, instead of encoding one machine's behaviour as a heuristic.
+\end{enumerate}
+
+\placeholder{Relationship to Cycle Splitter, our group's other approach to the
+same problem, needs stating here with a citation. Cycle Splitter moves each
+element exactly once and bounds auxiliary memory explicitly. Box following
+accepts multiple passes in exchange for regular, coalesced kernels, and wins
+where $D_{post}$ is large enough. The constant $D_{post}^{*}$ in
+\texttt{src/\_plan.py} is the routing gate between the two, so the comparison
+is not rhetorical. Deriving it is a milestone.}
+
+\placeholder{A direct head-to-head against \textsc{EITHOT} and \textsc{ITTPD}
+on their reported shapes is the strongest evidence for these claims, and is
+not yet run. It is the deliverable of the evaluation milestone.}

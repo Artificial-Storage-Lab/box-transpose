@@ -1,0 +1,35 @@
+% Component 1 of the proposal guidelines: the title page. The title, authors
+% and affiliation are set by \maketitle in box-transpose.tex; this file carries
+% what the guidelines ask for beyond a normal paper's title block -- who is on
+% the team and what each of them is responsible for.
+%
+% A description list rather than a tabular: responsibilities are sentences, and
+% a two-column table at 241pt either overflows the measure or needs its column
+% widths hand-tuned every time a role changes.
+%
+% Keep the names and initials here in step with MEMBERS in
+% pipeline/tables/gen_table_timeline.py -- that renderer asserts every
+% milestone owner is one of them, so a name changed in only one place fails
+% `make defs` rather than going unnoticed.
+\section*{Team and Responsibilities}
+
+\begin{description}
+\item[Kaveen Jayamanna (KJ).] The planner and its cost model
+  (\texttt{src/\_plan.py}): the box-swap graph, the shortest-path search, and
+  the derivation of $\tau$, $\mu$ and $D_{post}^{*}$. The in-place
+  cycle-following CUDA kernel (\texttt{src/\_kernels/}), including the scalar
+  and vectorised paths.
+
+\item[Alexis Newman (AN).] Measurement and validation: the throughput
+  micro-benchmark that calibrates the cost model on the evaluation hardware,
+  the correctness suite that gates every result, the end-to-end comparison
+  against the out-of-place baseline, and the head-to-head against the closest
+  prior systems.
+\end{description}
+
+Both members share the write-up and the final presentation.
+Table~\ref{tab:timeline} assigns every milestone to one of them.
+
+\placeholder{Confirm this division before submitting. It is a proposed split
+based on where each part of the work already sits, not one that has been
+agreed.}
