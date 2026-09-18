@@ -39,6 +39,6 @@ def get_box_ext():
     if _box_ext is None:
         _box_ext = load_ext(
             "bt_box",
-            ["box_kernel.cu", "box_kernel.cpp"],
+            ["box_kernel.cu", "box_leader_kernel.cu", "box_kernel.cpp"],
         )
     return _box_ext

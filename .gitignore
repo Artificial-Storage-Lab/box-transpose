@@ -23,6 +23,8 @@ calibration
 # slide-layout previews: QA output for the deck, regenerate with
 # `cd paper/presentations && python3 preview_deck.py`
 paper/presentations/preview/
+n_dims
+two_dims
 
 # secrets
 */*.env

@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Architecture - Complete System View</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #151932;
+            --bg-tertiary: #1e2341;
+            --accent-green: #00ff88;
+            --accent-blue: #00d4ff;
+            --accent-purple: #b84dff;
+            --accent-orange: #ff6b35;
+            --accent-red: #ff5555;
+            --accent-yellow: #ffeb3b;
+            --text-primary: #e8f4f8;
+            --text-secondary: #8b9bb4;
+            --border-color: #2a3250;
+        }
+        
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        code, pre {
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            padding: 60px 20px;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border-bottom: 3px solid var(--accent-green);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(0, 255, 136, 0.1) 0%, transparent 70%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.3; }
+            50% { transform: scale(1.2); opacity: 0.5; }
+        }
+        
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .subtitle {
+            font-size: 1.3rem;
+            color: var(--text-secondary);
+            position: relative;
+            z-index: 1;
+            margin-top: 10px;
+        }
+        
+        /* System Architecture Diagram */
+        .system-diagram {
+            background: var(--bg-secondary);
+            padding: 40px;
+            margin: 40px 0;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .diagram-title {
+            font-size: 2rem;
+            color: var(--accent-blue);
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 700;
+        }
+        
+        .gpu-system {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+        
+        /* CPU/Host Section */
+        .host-section {
+            background: var(--bg-tertiary);
+            padding: 25px;
+            border-radius: 8px;
+            border: 2px solid var(--accent-purple);
+            position: relative;
+        }
+        
+        .section-label {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--accent-purple);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .component-box {
+            background: var(--bg-secondary);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent-purple);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .component-box:hover {
+            transform: translateX(5px);
+            border-left-color: var(--accent-green);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.2);
+        }
+        
+        .component-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 5px;
+        }
+        
+        .component-desc {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        /* GPU Device Section */
+        .device-section {
+            background: var(--bg-tertiary);
+            padding: 25px;
+            border-radius: 8px;
+            border: 2px solid var(--accent-green);
+        }
+        
+        .device-section .section-label {
+            color: var(--accent-green);
+        }
+        
+        /* Streaming Multiprocessor */
+        .sm-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .sm-box {
+            background: rgba(0, 255, 136, 0.05);
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .sm-box:hover {
+            border-color: var(--accent-green);
+            background: rgba(0, 255, 136, 0.1);
+            transform: scale(1.02);
+        }
+        
+        .sm-title {
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        /* Warp Visualization */
+        .warp-container {
+            background: var(--bg-primary);
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        
+        .warp-label {
+            font-size: 0.85rem;
+            color: var(--accent-blue);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .warp-threads {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 3px;
+        }
+        
+        .mini-thread {
+            aspect-ratio: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 2px;
+            font-size: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+        
+        .mini-thread:hover {
+            background: var(--accent-blue);
+            color: var(--bg-primary);
+            transform: scale(1.2);
+            z-index: 10;
+        }
+        
+        /* Memory Hierarchy */
+        .memory-section {
+            background: var(--bg-tertiary);
+            padding: 25px;
+            border-radius: 8px;
+            border: 2px solid var(--accent-orange);
+        }
+        
+        .memory-section .section-label {
+            color: var(--accent-orange);
+        }
+        
+        .memory-tier-compact {
+            background: var(--bg-secondary);
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent-orange);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .memory-tier-compact:hover {
+            transform: translateX(5px);
+            border-left-color: var(--accent-yellow);
+            box-shadow: 0 3px 10px rgba(255, 235, 59, 0.2);
+        }
+        
+        .memory-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .memory-speed {
+            font-size: 0.85rem;
+            color: var(--accent-orange);
+            padding: 3px 10px;
+            background: rgba(255, 107, 53, 0.1);
+            border-radius: 12px;
+        }
+        
+        /* Connection Lines */
+        .connection-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-blue);
+            font-size: 2rem;
+            animation: pulse-arrow 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-arrow {
+            0%, 100% { opacity: 0.5; transform: translateX(0); }
+            50% { opacity: 1; transform: translateX(5px); }
+        }
+        
+        /* Tabs */
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+        
+        .tab-button {
+            padding: 15px 30px;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            color: var(--text-primary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        
+        .tab-button:hover {
+            border-color: var(--accent-green);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+        }
+        
+        .tab-button.active {
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            border-color: var(--accent-green);
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Detailed Views */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .detail-card {
+            background: var(--bg-secondary);
+            padding: 25px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        
+        .detail-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
+        }
+        
+        .card-header {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            margin-bottom: 15px;
+        }
+        
+        .spec-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .spec-label {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        
+        .spec-value {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+        
+        /* Code Examples */
+        .code-section {
+            background: #0d1117;
+            padding: 25px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+        
+        .code-header {
+            font-size: 0.9rem;
+            color: var(--accent-blue);
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        pre {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        
+        .keyword { color: #ff79c6; font-weight: 600; }
+        .function { color: #50fa7b; }
+        .comment { color: #6272a4; font-style: italic; }
+        .number { color: #bd93f9; }
+        .type { color: #8be9fd; }
+        
+        /* Info Boxes */
+        .info-box {
+            background: rgba(0, 212, 255, 0.1);
+            border-left: 4px solid var(--accent-blue);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 6px;
+        }
+        
+        .info-title {
+            font-weight: 700;
+            color: var(--accent-blue);
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .warning-box {
+            background: rgba(255, 107, 53, 0.1);
+            border-left: 4px solid var(--accent-orange);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 6px;
+        }
+        
+        .warning-title {
+            font-weight: 700;
+            color: var(--accent-orange);
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        /* Interactive Execution Flow */
+        .execution-flow {
+            background: var(--bg-tertiary);
+            padding: 30px;
+            border-radius: 8px;
+            margin: 30px 0;
+        }
+        
+        .flow-step {
+            background: var(--bg-secondary);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-green);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .flow-step:hover {
+            transform: translateX(10px);
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.2);
+        }
+        
+        .step-number {
+            position: absolute;
+            left: -15px;
+            top: 15px;
+            width: 30px;
+            height: 30px;
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+        
+        .step-title {
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+        
+        .step-desc {
+            color: var(--text-secondary);
+        }
+        
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .comparison-table th {
+            background: var(--bg-primary);
+            padding: 15px;
+            text-align: left;
+            color: var(--accent-green);
+            font-weight: 700;
+            border-bottom: 2px solid var(--accent-green);
+        }
+        
+        .comparison-table td {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .comparison-table tr:hover {
+            background: var(--bg-secondary);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            margin-top: 60px;
+            border-top: 2px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        
+        @media (max-width: 1024px) {
+            .gpu-system {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 { font-size: 2.5rem; }
+            .sm-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>GPU ARCHITECTURE</h1>
+        <p class="subtitle">Complete System View: How Everything Connects</p>
+    </header>
+
+    <div class="container">
+        <div class="nav-tabs">
+            <button class="tab-button active" onclick="showTab('system')">System Overview</button>
+            <button class="tab-button" onclick="showTab('execution')">Execution Model</button>
+            <button class="tab-button" onclick="showTab('memory')">Memory System</button>
+            <button class="tab-button" onclick="showTab('flow')">Program Flow</button>
+        </div>
+
+        <!-- SYSTEM OVERVIEW TAB -->
+        <div id="system" class="tab-content active">
+            <div class="system-diagram">
+                <h2 class="diagram-title">Complete GPU System Architecture</h2>
+                
+                <div class="gpu-system">
+                    <!-- HOST/CPU SECTION -->
+                    <div class="host-section">
+                        <div class="section-label">HOST (CPU)</div>
+                        
+                        <div class="component-box">
+                            <div class="component-name">System RAM</div>
+                            <div class="component-desc">GB-TB range, slow PCIe transfer</div>
+                        </div>
+                        
+                        <div class="component-box">
+                            <div class="component-name">CPU Cores</div>
+                            <div class="component-desc">Launches kernels, manages GPU</div>
+                        </div>
+                        
+                        <div class="component-box">
+                            <div class="component-name">PCIe Bus</div>
+                            <div class="component-desc">16-32 GB/s transfer rate</div>
+                        </div>
+                        
+                        <div class="info-box" style="margin-top: 20px;">
+                            <div class="info-title">cudaMemcpy</div>
+                            Host ↔ Device data transfer via PCIe. This is often the bottleneck!
+                        </div>
+                    </div>
+
+                    <!-- GPU DEVICE SECTION -->
+                    <div class="device-section">
+                        <div class="section-label">GPU DEVICE</div>
+                        
+                        <div style="background: rgba(0, 212, 255, 0.05); padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                            <h3 style="color: var(--accent-blue); margin-bottom: 10px;">Grid of Blocks</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                                Kernel launches organize threads into blocks, blocks into a grid
+                            </p>
+                        </div>
+                        
+                        <div class="sm-grid">
+                            <!-- SM 1 -->
+                            <div class="sm-box">
+                                <div class="sm-title">Streaming Multiprocessor (SM)</div>
+                                
+                                <div style="margin: 15px 0;">
+                                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0;">
+                                        <div style="font-weight: 600; color: var(--accent-purple); margin-bottom: 8px;">Block 0 (256 threads)</div>
+                                        
+                                        <div class="warp-container">
+                                            <div class="warp-label">Warp 0 (threads 0-31)</div>
+                                            <div class="warp-threads">
+                                                <div class="mini-thread">0</div>
+                                                <div class="mini-thread">1</div>
+                                                <div class="mini-thread">2</div>
+                                                <div class="mini-thread">3</div>
+                                                <div class="mini-thread">4</div>
+                                                <div class="mini-thread">5</div>
+                                                <div class="mini-thread">6</div>
+                                                <div class="mini-thread">7</div>
+                                                <div class="mini-thread">8</div>
+                                                <div class="mini-thread">9</div>
+                                                <div class="mini-thread">10</div>
+                                                <div class="mini-thread">11</div>
+                                                <div class="mini-thread">12</div>
+                                                <div class="mini-thread">13</div>
+                                                <div class="mini-thread">14</div>
+                                                <div class="mini-thread">15</div>
+                                                <div class="mini-thread">16</div>
+                                                <div class="mini-thread">17</div>
+                                                <div class="mini-thread">18</div>
+                                                <div class="mini-thread">19</div>
+                                                <div class="mini-thread">20</div>
+                                                <div class="mini-thread">21</div>
+                                                <div class="mini-thread">22</div>
+                                                <div class="mini-thread">23</div>
+                                                <div class="mini-thread">24</div>
+                                                <div class="mini-thread">25</div>
+                                                <div class="mini-thread">26</div>
+                                                <div class="mini-thread">27</div>
+                                                <div class="mini-thread">28</div>
+                                                <div class="mini-thread">29</div>
+                                                <div class="mini-thread">30</div>
+                                                <div class="mini-thread">31</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
+                                            + 7 more warps (32-255)
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="background: var(--bg-secondary); padding: 10px; border-radius: 6px; margin: 8px 0; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <strong style="color: var(--accent-green);">Shared Memory:</strong> ~48 KB per block
+                                    </div>
+                                    
+                                    <div style="background: var(--bg-secondary); padding: 10px; border-radius: 6px; margin: 8px 0; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <strong style="color: var(--accent-blue);">L1 Cache:</strong> 16-48 KB
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- SM 2 -->
+                            <div class="sm-box">
+                                <div class="sm-title">Streaming Multiprocessor (SM)</div>
+                                
+                                <div style="margin: 15px 0;">
+                                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0;">
+                                        <div style="font-weight: 600; color: var(--accent-purple); margin-bottom: 8px;">Block 1 (256 threads)</div>
+                                        
+                                        <div class="warp-container">
+                                            <div class="warp-label">Warp 0 (threads 0-31)</div>
+                                            <div class="warp-threads">
+                                                <div class="mini-thread">0</div>
+                                                <div class="mini-thread">1</div>
+                                                <div class="mini-thread">2</div>
+                                                <div class="mini-thread">3</div>
+                                                <div class="mini-thread">4</div>
+                                                <div class="mini-thread">5</div>
+                                                <div class="mini-thread">6</div>
+                                                <div class="mini-thread">7</div>
+                                                <div class="mini-thread">8</div>
+                                                <div class="mini-thread">9</div>
+                                                <div class="mini-thread">10</div>
+                                                <div class="mini-thread">11</div>
+                                                <div class="mini-thread">12</div>
+                                                <div class="mini-thread">13</div>
+                                                <div class="mini-thread">14</div>
+                                                <div class="mini-thread">15</div>
+                                                <div class="mini-thread">16</div>
+                                                <div class="mini-thread">17</div>
+                                                <div class="mini-thread">18</div>
+                                                <div class="mini-thread">19</div>
+                                                <div class="mini-thread">20</div>
+                                                <div class="mini-thread">21</div>
+                                                <div class="mini-thread">22</div>
+                                                <div class="mini-thread">23</div>
+                                                <div class="mini-thread">24</div>
+                                                <div class="mini-thread">25</div>
+                                                <div class="mini-thread">26</div>
+                                                <div class="mini-thread">27</div>
+                                                <div class="mini-thread">28</div>
+                                                <div class="mini-thread">29</div>
+                                                <div class="mini-thread">30</div>
+                                                <div class="mini-thread">31</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
+                                            + 7 more warps (32-255)
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="background: var(--bg-secondary); padding: 10px; border-radius: 6px; margin: 8px 0; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <strong style="color: var(--accent-green);">Shared Memory:</strong> ~48 KB per block
+                                    </div>
+                                    
+                                    <div style="background: var(--bg-secondary); padding: 10px; border-radius: 6px; margin: 8px 0; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <strong style="color: var(--accent-blue);">L1 Cache:</strong> 16-48 KB
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center; margin: 20px 0; color: var(--text-secondary);">
+                            ... More SMs executing more blocks ...
+                        </div>
+                        
+                        <div style="background: rgba(0, 212, 255, 0.05); padding: 15px; border-radius: 6px; margin-top: 20px;">
+                            <h3 style="color: var(--accent-blue); margin-bottom: 10px;">L2 Cache (Shared)</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                                MB range, shared across all SMs, ~200 cycles latency
+                            </p>
+                        </div>
+                        
+                        <div style="background: rgba(255, 107, 53, 0.05); padding: 15px; border-radius: 6px; margin-top: 10px;">
+                            <h3 style="color: var(--accent-orange); margin-bottom: 10px;">Global Memory (GDDR/HBM)</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                                GB range, 400-800 cycles latency, off-chip DRAM
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- MEMORY HIERARCHY SECTION -->
+                    <div class="memory-section">
+                        <div class="section-label">MEMORY HIERARCHY</div>
+                        
+                        <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 15px;">
+                            Speed: Fast → Slow<br>
+                            Size: Small → Large
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">Registers</div>
+                            <div class="memory-speed">~1 cycle</div>
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">Shared Mem</div>
+                            <div class="memory-speed">~20 cycles</div>
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">L1 Cache</div>
+                            <div class="memory-speed">~25 cycles</div>
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">Constant</div>
+                            <div class="memory-speed">~25 cycles</div>
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">L2 Cache</div>
+                            <div class="memory-speed">~200 cycles</div>
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">Texture</div>
+                            <div class="memory-speed">~400 cycles</div>
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">Global</div>
+                            <div class="memory-speed">400-800 cycles</div>
+                        </div>
+                        
+                        <div class="memory-tier-compact">
+                            <div class="memory-name">Host RAM</div>
+                            <div class="memory-speed">100K+ cycles</div>
+                        </div>
+                        
+                        <div class="warning-box" style="margin-top: 20px;">
+                            <div class="warning-title">Key Insight</div>
+                            Global memory is the slowest! Use shared memory to cache data and reduce global accesses.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <div class="info-title">How It All Works Together</div>
+                <ol style="margin-left: 20px; color: var(--text-secondary);">
+                    <li>CPU allocates data in Host RAM and copies to GPU Global Memory (cudaMemcpy)</li>
+                    <li>CPU launches kernel: kernel&lt;&lt;&lt;blocks, threads&gt;&gt;&gt;(args)</li>
+                    <li>GPU scheduler distributes blocks across available SMs</li>
+                    <li>Each SM organizes its threads into warps (32 threads each)</li>
+                    <li>Warps execute in lockstep (SIMD) - same instruction, different data</li>
+                    <li>Threads access memory hierarchy: Registers → Shared → L1 → L2 → Global</li>
+                    <li>Results written back to Global Memory</li>
+                    <li>CPU copies results back to Host RAM (cudaMemcpy)</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- EXECUTION MODEL TAB -->
+        <div id="execution" class="tab-content">
+            <div class="system-diagram">
+                <h2 class="diagram-title">Execution Hierarchy & Thread Organization</h2>
+                
+                <div class="detail-grid">
+                    <div class="detail-card">
+                        <div class="card-header">Thread</div>
+                        <div class="spec-row">
+                            <span class="spec-label">Definition</span>
+                            <span class="spec-value">Basic execution unit</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Memory</span>
+                            <span class="spec-value">Registers + Local</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">ID Format</span>
+                            <span class="spec-value">threadIdx.x/y/z</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Scope</span>
+                            <span class="spec-value">Per thread</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <div class="card-header">Warp</div>
+                        <div class="spec-row">
+                            <span class="spec-label">Definition</span>
+                            <span class="spec-value">32 threads</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Control</span>
+                            <span class="spec-value">Hardware (automatic)</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Execution</span>
+                            <span class="spec-value">SIMD Lockstep</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Manager</span>
+                            <span class="spec-value">Warp Scheduler (SM)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <div class="card-header">Block</div>
+                        <div class="spec-row">
+                            <span class="spec-label">Max Threads</span>
+                            <span class="spec-value">1024</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Shared Memory</span>
+                            <span class="spec-value">~48 KB</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Dimensions</span>
+                            <span class="spec-value">1D / 2D / 3D</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Cooperation</span>
+                            <span class="spec-value">__syncthreads()</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <div class="card-header">Grid</div>
+                        <div class="spec-row">
+                            <span class="spec-label">Contains</span>
+                            <span class="spec-value">Multiple blocks</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Execution</span>
+                            <span class="spec-value">Independent</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Dimensions</span>
+                            <span class="spec-value">1D / 2D / 3D</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Scope</span>
+                            <span class="spec-value">Entire kernel</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="code-section">
+                    <div class="code-header">Launch Configuration & Thread ID Calculation</div>
+                    <pre><span class="comment">// Define configuration</span>
+<span class="keyword">int</span> threadsPerBlock = <span class="number">256</span>;
+<span class="keyword">int</span> blocksPerGrid = (N + threadsPerBlock - <span class="number">1</span>) / threadsPerBlock;
+
+<span class="comment">// Launch kernel</span>
+<span class="function">vectorAdd</span><<<blocksPerGrid, threadsPerBlock>>>(d_a, d_b, d_c, N);
+
+<span class="comment">// Inside kernel - calculate unique thread ID</span>
+<span class="keyword">__global__</span> <span class="keyword">void</span> <span class="function">vectorAdd</span>(<span class="type">float</span>* a, <span class="type">float</span>* b, <span class="type">float</span>* c, <span class="type">int</span> n) {
+    <span class="type">int</span> tid = threadIdx.x + blockIdx.x * blockDim.x;
+    
+    <span class="comment">// Guard clause - critical!</span>
+    <span class="keyword">if</span> (tid < n) {
+        c[tid] = a[tid] + b[tid];
+    }
+}</pre>
+                </div>
+                
+                <div class="warning-box">
+                    <div class="warning-title">Blocks vs Warps - Critical Distinction</div>
+                    <strong>Blocks:</strong> Defined by programmer (up to 1024 threads), can synchronize and share memory<br>
+                    <strong>Warps:</strong> Fixed hardware groups of exactly 32 threads, execute in lockstep automatically
+                </div>
+                
+                <div class="info-box">
+                    <div class="info-title">Common Launch Configurations</div>
+                    <table class="comparison-table" style="margin: 15px 0;">
+                        <thead>
+                            <tr>
+                                <th>Use Case</th>
+                                <th>Block Dim</th>
+                                <th>Threads</th>
+                                <th>Rationale</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1D Vectors</td>
+                                <td>256 × 1 × 1</td>
+                                <td>256</td>
+                                <td>Good occupancy balance</td>
+                            </tr>
+                            <tr>
+                                <td>2D Images</td>
+                                <td>16 × 16 × 1</td>
+                                <td>256</td>
+                                <td>Matches 2D structure</td>
+                            </tr>
+                            <tr>
+                                <td>2D Matrices</td>
+                                <td>32 × 32 × 1</td>
+                                <td>1024</td>
+                                <td>Maximum threads/block</td>
+                            </tr>
+                            <tr>
+                                <td>3D Volumes</td>
+                                <td>8 × 8 × 8</td>
+                                <td>512</td>
+                                <td>Matches 3D data</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- MEMORY SYSTEM TAB -->
+        <div id="memory" class="tab-content">
+            <div class="system-diagram">
+                <h2 class="diagram-title">Complete Memory Hierarchy</h2>
+                
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Memory Type</th>
+                            <th>Latency</th>
+                            <th>Size</th>
+                            <th>Scope</th>
+                            <th>Management</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: rgba(0, 255, 136, 0.1);">
+                            <td><strong>Registers</strong></td>
+                            <td>~1 cycle</td>
+                            <td>Very Small</td>
+                            <td>Per Thread</td>
+                            <td>Automatic</td>
+                            <td>On-chip</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Local Memory</strong></td>
+                            <td>400-800 cycles</td>
+                            <td>Medium</td>
+                            <td>Per Thread</td>
+                            <td>Automatic</td>
+                            <td>Global DRAM</td>
+                        </tr>
+                        <tr style="background: rgba(0, 255, 136, 0.1);">
+                            <td><strong>Shared Memory</strong></td>
+                            <td>~20 cycles</td>
+                            <td>~48 KB</td>
+                            <td>Per Block</td>
+                            <td>Programmer</td>
+                            <td>On-chip</td>
+                        </tr>
+                        <tr>
+                            <td><strong>L1 Cache</strong></td>
+                            <td>~25 cycles</td>
+                            <td>16-48 KB</td>
+                            <td>Per SM</td>
+                            <td>Hardware</td>
+                            <td>On-chip</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Constant Memory</strong></td>
+                            <td>~25 cycles (cached)</td>
+                            <td>64 KB</td>
+                            <td>GPU-wide</td>
+                            <td>Programmer</td>
+                            <td>Global DRAM + Cache</td>
+                        </tr>
+                        <tr>
+                            <td><strong>L2 Cache</strong></td>
+                            <td>~200 cycles</td>
+                            <td>MB range</td>
+                            <td>GPU-wide</td>
+                            <td>Hardware</td>
+                            <td>On-chip</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Texture Memory</strong></td>
+                            <td>~400 cycles</td>
+                            <td>Same as Global</td>
+                            <td>GPU-wide</td>
+                            <td>Hardware</td>
+                            <td>Global DRAM + Cache</td>
+                        </tr>
+                        <tr style="background: rgba(255, 107, 53, 0.1);">
+                            <td><strong>Global Memory</strong></td>
+                            <td>400-800 cycles</td>
+                            <td>GB range</td>
+                            <td>GPU-wide</td>
+                            <td>Programmer</td>
+                            <td>Off-chip DRAM</td>
+                        </tr>
+                        <tr style="background: rgba(255, 85, 85, 0.1);">
+                            <td><strong>Host Memory</strong></td>
+                            <td>100,000+ cycles</td>
+                            <td>GB-TB range</td>
+                            <td>CPU System</td>
+                            <td>Programmer</td>
+                            <td>System DRAM</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="detail-grid">
+                    <div class="detail-card">
+                        <div class="card-header">Coalesced Access</div>
+                        <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                            Adjacent threads accessing adjacent memory addresses in a single transaction.
+                        </p>
+                        <div class="code-section" style="margin: 0;">
+                            <pre><span class="comment">// GOOD - Coalesced</span>
+<span class="type">int</span> tid = threadIdx.x + blockIdx.x * blockDim.x;
+<span class="type">float</span> val = data[tid];  <span class="comment">// Sequential</span>
+
+<span class="comment">// BAD - Non-coalesced</span>
+<span class="type">float</span> val = data[tid * stride];  <span class="comment">// Scattered</span></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <div class="card-header">Shared Memory Usage</div>
+                        <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                            Cache frequently accessed data to avoid slow global memory.
+                        </p>
+                        <div class="code-section" style="margin: 0;">
+                            <pre><span class="keyword">__shared__</span> <span class="type">float</span> tile[<span class="number">256</span>];
+
+<span class="comment">// Load from global</span>
+tile[threadIdx.x] = global[idx];
+<span class="function">__syncthreads</span>();
+
+<span class="comment">// Process from shared (fast!)</span>
+result = compute(tile[threadIdx.x]);</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <div class="card-header">Register Spilling</div>
+                        <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                            Too many local variables overflow from fast registers to slow local memory.
+                        </p>
+                        <div class="spec-row">
+                            <span class="spec-label">Cause</span>
+                            <span class="spec-value">Too many variables</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Effect</span>
+                            <span class="spec-value">Local memory use</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Penalty</span>
+                            <span class="spec-value">400-800 cycle latency</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Solution</span>
+                            <span class="spec-value">Reduce variables</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <div class="card-header">Cache Behavior</div>
+                        <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                            L1 and L2 caches automatically optimize memory access patterns.
+                        </p>
+                        <div class="spec-row">
+                            <span class="spec-label">L1 Scope</span>
+                            <span class="spec-value">Per SM</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">L2 Scope</span>
+                            <span class="spec-value">GPU-wide</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Cache Line</span>
+                            <span class="spec-value">128 bytes</span>
+                        </div>
+                        <div class="spec-row">
+                            <span class="spec-label">Best Pattern</span>
+                            <span class="spec-value">Sequential access</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="warning-box">
+                    <div class="warning-title">Memory Transfer Bottleneck</div>
+                    Host ↔ Device transfers via PCIe are often the biggest bottleneck. A computation that takes 
+                    1ms on GPU might need 100ms of transfer time! Strategies:
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li>Minimize transfers - compute multiple steps on GPU</li>
+                        <li>Use asynchronous transfers with CUDA streams</li>
+                        <li>Overlap transfer with computation</li>
+                        <li>Use pinned (page-locked) memory for faster transfers</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- PROGRAM FLOW TAB -->
+        <div id="flow" class="tab-content">
+            <div class="system-diagram">
+                <h2 class="diagram-title">Complete GPU Program Execution Flow</h2>
+                
+                <div class="execution-flow">
+                    <div class="flow-step">
+                        <div class="step-number">1</div>
+                        <div class="step-title">Initialize & Allocate Host Memory</div>
+                        <div class="step-desc">
+                            Allocate arrays in system RAM, initialize data
+                        </div>
+                        <div class="code-section" style="margin-top: 15px;">
+                            <pre><span class="type">float</span> *h_a = (<span class="type">float</span>*)<span class="function">malloc</span>(size);
+<span class="type">float</span> *h_b = (<span class="type">float</span>*)<span class="function">malloc</span>(size);
+<span class="type">float</span> *h_c = (<span class="type">float</span>*)<span class="function">malloc</span>(size);</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flow-step">
+                        <div class="step-number">2</div>
+                        <div class="step-title">Allocate Device Memory</div>
+                        <div class="step-desc">
+                            Allocate corresponding arrays in GPU global memory
+                        </div>
+                        <div class="code-section" style="margin-top: 15px;">
+                            <pre><span class="type">float</span> *d_a, *d_b, *d_c;
+<span class="function">cudaMalloc</span>((<span class="type">void</span>**)&d_a, size);
+<span class="function">cudaMalloc</span>((<span class="type">void</span>**)&d_b, size);
+<span class="function">cudaMalloc</span>((<span class="type">void</span>**)&d_c, size);</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flow-step">
+                        <div class="step-number">3</div>
+                        <div class="step-title">Copy Data Host → Device</div>
+                        <div class="step-desc">
+                            Transfer input data from system RAM to GPU via PCIe (slow!)
+                        </div>
+                        <div class="code-section" style="margin-top: 15px;">
+                            <pre><span class="function">cudaMemcpy</span>(d_a, h_a, size, cudaMemcpyHostToDevice);
+<span class="function">cudaMemcpy</span>(d_b, h_b, size, cudaMemcpyHostToDevice);</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flow-step">
+                        <div class="step-number">4</div>
+                        <div class="step-title">Launch Kernel</div>
+                        <div class="step-desc">
+                            Configure and launch parallel execution on GPU
+                        </div>
+                        <div class="code-section" style="margin-top: 15px;">
+                            <pre><span class="type">int</span> threads = <span class="number">256</span>;
+<span class="type">int</span> blocks = (N + threads - <span class="number">1</span>) / threads;
+<span class="function">vectorAdd</span><<<blocks, threads>>>(d_a, d_b, d_c, N);</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flow-step">
+                        <div class="step-number">5</div>
+                        <div class="step-title">GPU Execution</div>
+                        <div class="step-desc">
+                            Scheduler distributes blocks to SMs → SMs organize into warps → Warps execute in lockstep
+                        </div>
+                        <div style="margin-top: 15px; padding: 15px; background: var(--bg-primary); border-radius: 6px;">
+                            <strong style="color: var(--accent-green);">Inside each thread:</strong><br>
+                            <span style="color: var(--text-secondary);">
+                                1. Calculate unique thread ID<br>
+                                2. Check bounds (guard clause)<br>
+                                3. Access memory (Registers → Shared → L1 → L2 → Global)<br>
+                                4. Perform computation<br>
+                                5. Write result to global memory
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="flow-step">
+                        <div class="step-number">6</div>
+                        <div class="step-title">Synchronize</div>
+                        <div class="step-desc">
+                            Wait for GPU to finish (kernel launch is asynchronous!)
+                        </div>
+                        <div class="code-section" style="margin-top: 15px;">
+                            <pre><span class="function">cudaDeviceSynchronize</span>();  <span class="comment">// Block until GPU done</span></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flow-step">
+                        <div class="step-number">7</div>
+                        <div class="step-title">Copy Results Device → Host</div>
+                        <div class="step-desc">
+                            Transfer results back from GPU to system RAM via PCIe
+                        </div>
+                        <div class="code-section" style="margin-top: 15px;">
+                            <pre><span class="function">cudaMemcpy</span>(h_c, d_c, size, cudaMemcpyDeviceToHost);</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flow-step">
+                        <div class="step-number">8</div>
+                        <div class="step-title">Cleanup</div>
+                        <div class="step-desc">
+                            Free device and host memory to prevent leaks
+                        </div>
+                        <div class="code-section" style="margin-top: 15px;">
+                            <pre><span class="function">cudaFree</span>(d_a);
+<span class="function">cudaFree</span>(d_b);
+<span class="function">cudaFree</span>(d_c);
+<span class="function">free</span>(h_a);
+<span class="function">free</span>(h_b);
+<span class="function">free</span>(h_c);</pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-box">
+                    <div class="info-title">Complete Example: Vector Addition</div>
+                    <div class="code-section">
+                        <pre><span class="comment">// Kernel definition</span>
+<span class="keyword">__global__</span> <span class="keyword">void</span> <span class="function">vectorAdd</span>(<span class="type">float</span>* a, <span class="type">float</span>* b, <span class="type">float</span>* c, <span class="type">int</span> n) {
+    <span class="type">int</span> tid = threadIdx.x + blockIdx.x * blockDim.x;
+    <span class="keyword">if</span> (tid < n) {
+        c[tid] = a[tid] + b[tid];
+    }
+}
+
+<span class="comment">// Host code</span>
+<span class="type">int</span> <span class="function">main</span>() {
+    <span class="type">int</span> N = <span class="number">10000</span>;
+    <span class="type">size_t</span> size = N * <span class="keyword">sizeof</span>(<span class="type">float</span>);
+    
+    <span class="comment">// 1. Allocate host memory</span>
+    <span class="type">float</span> *h_a = (<span class="type">float</span>*)<span class="function">malloc</span>(size);
+    <span class="type">float</span> *h_b = (<span class="type">float</span>*)<span class="function">malloc</span>(size);
+    <span class="type">float</span> *h_c = (<span class="type">float</span>*)<span class="function">malloc</span>(size);
+    
+    <span class="comment">// Initialize h_a and h_b...</span>
+    
+    <span class="comment">// 2. Allocate device memory</span>
+    <span class="type">float</span> *d_a, *d_b, *d_c;
+    <span class="function">cudaMalloc</span>(&d_a, size);
+    <span class="function">cudaMalloc</span>(&d_b, size);
+    <span class="function">cudaMalloc</span>(&d_c, size);
+    
+    <span class="comment">// 3. Copy to device</span>
+    <span class="function">cudaMemcpy</span>(d_a, h_a, size, cudaMemcpyHostToDevice);
+    <span class="function">cudaMemcpy</span>(d_b, h_b, size, cudaMemcpyHostToDevice);
+    
+    <span class="comment">// 4. Launch kernel</span>
+    <span class="type">int</span> threads = <span class="number">256</span>;
+    <span class="type">int</span> blocks = (N + threads - <span class="number">1</span>) / threads;
+    <span class="function">vectorAdd</span><<<blocks, threads>>>(d_a, d_b, d_c, N);
+    
+    <span class="comment">// 6. Synchronize</span>
+    <span class="function">cudaDeviceSynchronize</span>();
+    
+    <span class="comment">// 7. Copy results back</span>
+    <span class="function">cudaMemcpy</span>(h_c, d_c, size, cudaMemcpyDeviceToHost);
+    
+    <span class="comment">// 8. Cleanup</span>
+    <span class="function">cudaFree</span>(d_a); <span class="function">cudaFree</span>(d_b); <span class="function">cudaFree</span>(d_c);
+    <span class="function">free</span>(h_a); <span class="function">free</span>(h_b); <span class="function">free</span>(h_c);
+    
+    <span class="keyword">return</span> <span class="number">0</span>;
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p style="font-size: 1.1rem; font-weight: 600;">GPU Programming with C++ and CUDA</p>
+        <p style="margin-top: 10px;">Complete System Architecture - How Everything Connects</p>
+        <p style="margin-top: 15px; font-size: 0.9rem; color: var(--text-secondary);">
+            Understanding the complete system: CPU/Host ↔ PCIe ↔ GPU Device (Grid → Blocks → Warps → Threads)<br>
+            Memory Hierarchy: Registers → Shared → L1 → L2 → Global → Host RAM
+        </p>
+    </footer>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Remove active from all buttons
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            
+            // Highlight selected button
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

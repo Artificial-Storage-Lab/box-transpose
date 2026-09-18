@@ -43,6 +43,22 @@ def profile(plan: PermutePlan) -> BoxProfile:
     return BoxProfile(plan, starts, lengths)
 
 
+def apply_leaderless(tensor: torch.Tensor, plan: PermutePlan) -> None:
+    """Run a plan with no cycle table at all.
+
+    `apply` needs a BoxProfile because box_kernel.cu is told where every cycle
+    starts. Those arrays are the method's auxiliary memory, and on a square
+    block they approach one entry per two elements -- the case where D_mid is
+    largest is exactly the case they cost the most. The leader kernel decides
+    on the device whether a position starts a cycle, so there is nothing to
+    precompute, nothing to upload, and no profile to hold: auxiliary memory is
+    the plan itself, a few hundred bytes independent of N.
+    """
+    ext = get_box_ext()
+    for step in plan.steps:
+        ext.box_swap_leader(tensor, step.d_pre, step.rows, step.cols, step.d_post)
+
+
 def apply(tensor: torch.Tensor, box_profile: BoxProfile) -> None:
     ext = get_box_ext()
     for step, starts, lengths in zip(

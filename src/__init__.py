@@ -18,7 +18,7 @@ from ._plan import (
     matrix_transpose_cycles,
     plan_permute,
 )
-from ._transpose import BoxProfile, apply, profile
+from ._transpose import BoxProfile, apply, apply_leaderless, profile
 
 __all__ = [
     "BoxProfile",
@@ -26,6 +26,7 @@ __all__ = [
     "PermutePlan",
     "SwapStep",
     "apply",
+    "apply_leaderless",
     "matrix_transpose_cycles",
     "plan_permute",
     "profile",

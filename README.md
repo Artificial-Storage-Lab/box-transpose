@@ -112,42 +112,40 @@ Python would normally take the import name from the directory name, so
 regardless of what the folder is called — but if you move or rename `src/`,
 update that mapping too or the package stops resolving.
 
-## Calibration
+## Cost model
 
-`_plan.py` carries three constants near the top:
-
-| constant | meaning |
-|---|---|
-| `MU` | mean observed throughput in GB/s, used to turn bytes into milliseconds |
-| `TAU` | minimum `d_post` for a graph edge to be considered |
-| `D_POST_STAR` | minimum `d_post` at which box following beats a cycle splitter |
-
-`MU = 69.7` was measured on an RTX PRO 6000 Blackwell at N=1e9. **`TAU` and
-`D_POST_STAR` are both currently set to `1`, which disables their pruning
-entirely** — re-derive them before relying on either.
-
-The `calibration/` scripts regenerate these:
+There are no calibrated constants. A swap of a `rows x cols` block moves
 
 ```
-data_generation/                     the runners that produce all measurement data
-find_edge_costs/micro_benchmark.py   sweeps D_post on a GPU  -> micro_benchmark_results.jsonl
-find_edge_costs/calibrate.py         fits MU and TAU from that sweep
-find_edge_costs/evaluate.py          scores the model against pilot measurements
-find_edge_costs/verify_across_ranks.py  same, per tensor rank
-model.py                             wider runtime model over benchmark sweeps
+d_pre x (rows*cols - gcd(rows-1, cols-1) - 1) x d_post x elem_bytes x 2
 ```
 
-**Measurement data is not vendored here** — it was hundreds of megabytes of
-`.jsonl`. Scripts that need it read `$BT_PILOT_ROOT`, expecting
-`rank-{n}/box/pilot_results.jsonl` beneath it; `model.py` reads `$BT_BENCH_ROOT`
-expecting `four_rank/results.jsonl` and `five_rank/results.jsonl`. Without those
-the scripts and `calibration/tests/` skip rather than fail.
+`gcd(rows-1, cols-1) + 1` is the number of cells a transpose maps to
+themselves. Those are the cells box transpose skips and an out-of-place copy
+cannot, because a copy has to write every output position whether or not it
+already holds the right value.
 
-`calibration/data_generation/` holds the runners that produce that data, and its
-README maps each producer to its consumers and the environment variable that
-connects them. `micro_benchmark.py` needs no external data at all — it measures
-from scratch on whatever GPU it runs on, and is the right starting point on new
-hardware.
+`plan.moved_ratio` divides that by `2*N*elem_bytes`, what `.contiguous()`
+moves. Both run at the same achieved bandwidth in the regime where a box plan
+is worth running, so **the ratio is the predicted runtime ratio, with no
+hardware constant in it**: below 1 the plan is expected to beat
+`.contiguous()`, at or above 1 it is not. Measured error inside that regime is
+about 2%.
+
+This replaces an earlier model with three fitted constants -- a throughput knee
+`TAU`, a routing gate `D_POST_STAR`, and a mean bandwidth `MU = 69.7` GB/s
+measured on one GPU. They are gone. `MU` cancelled out of a ratio, `TAU` became
+a structural condition on `d_post` rather than a fitted one, and the model now
+transfers to any GPU without recalibration.
+
+`MAX_STEPS` is the one remaining knob, and it is a policy rather than a
+measurement: every step rewrites the whole buffer, so a long plan moves several
+times the tensor. `plan_permute` returns `None` above it rather than handing
+back a plan it knows is not worth running.
+
+**`calibration/` is now orphaned.** Everything under it exists to fit `TAU` and
+`MU`, which no longer appear in `_plan.py`. It is kept for the history rather
+than because anything reads it.
 
 ## Documentation
 
@@ -196,28 +194,16 @@ as a description of the current code. The numbers in them also disagree with the
 shipped `MU = 69.7`; if you re-run the calibration, decide which model you are
 committing to rather than assuming they describe the same thing.
 
-## A known gap between the cost model and the search
+## Fixed points, and the gap that used to be here
 
-The documented cost of a swap is
+The search once used a placeholder that reported **zero** fixed points for
+every candidate. With `moved_cells = rows * cols` the cost of any step
+collapsed to `N x elem_bytes x 2` -- identical for every edge -- so Dijkstra had
+uniform weights and minimised the *number of steps* rather than the bytes
+moved. On `(2,3,4) -> (2,1,0)` it returned a 336-byte plan where a 304-byte one
+existed.
 
-```
-d_pre x moved_cells x d_post x elem_bytes x 2
-```
-
-where `moved_cells` excludes fixed points — matrix cells that a transpose maps
-to themselves. But during the Dijkstra search, `make_step` obtains its cycle
-information from `estimated_cycle_info`, a placeholder that reports **zero**
-fixed points, because enumerating the real cycles of every candidate edge would
-mean walking millions of positions per edge.
-
-With `moved_cells = rows * cols`, the cost of any step collapses to
-`N x elem_bytes x 2` — identical for every edge in the graph. The search
-therefore has uniform edge weights and minimises the *number of steps*, not the
-bytes moved. Exact cycle counts are filled in afterwards by
-`materialize_plan_steps`, so the `bytes_moved` a finished plan reports is
-accurate even though it was not what the search optimised.
-
-On large tensors the two agree closely: fixed points are typically just the two
-corner cells out of millions. On small ones they diverge visibly — for
-`(2,3,4) -> (2,1,0)` the planner returns a 336-byte plan where a 304-byte plan
-exists. Both are two steps.
+`fixed_point_count` closes it: `gcd(rows-1, cols-1) + 1`, O(1), exact, checked
+against enumeration over every matrix up to 39 x 39. Edge weights are now
+genuinely non-uniform, the search minimises real bytes, and that case returns
+304 bytes.
