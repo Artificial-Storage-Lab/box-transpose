@@ -5,13 +5,12 @@
 % figure*, not figure: six nodes laid out as the animation lays them out need
 % the full two-column measure. At 241pt the node boxes are under 40pt wide and
 % the edge labels collide.
+%
+% The generated body draws its own rounded frame, as the other two Section 2
+% figures do, so this wrapper must not draw a second one around it.
 \begin{figure*}[!t]
 \centering
-\begin{tikzpicture}
-\node[inner sep=2pt] (figgraph) {\input{sections/method/_generated/graph-fig.tex}};
-\draw[black,line width=0.5pt,rounded corners=2pt]
-  (figgraph.south west) rectangle (figgraph.north east);
-\end{tikzpicture}
+\input{sections/method/_generated/graph-fig.tex}%
 \caption{\capheadline{The graph the planner searches.}
 Each node is one way of ordering the axes. Each arrow is a legal swap. The
 cheapest route is drawn in orange with the bytes each of its swaps moves. The

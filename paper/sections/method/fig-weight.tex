@@ -4,16 +4,12 @@
 % picture fails `make defs` rather than printing.
 \begin{figure}[!t]
 \centering
-\begin{tikzpicture}
-\node[inner sep=2pt] (figweight) {\input{sections/method/_generated/weight-fig.tex}};
-\draw[black,line width=0.5pt,rounded corners=2pt]
-  (figweight.south west) rectangle (figweight.north east);
-\end{tikzpicture}
+\input{sections/method/_generated/weight-fig.tex}%
 \caption{\capheadline{Where an edge's weight comes from.}
-Shaded cells are already in the right place. A transpose does not move them, so
-we do not either, and a copy has to write them anyway. The smaller the block,
-the larger the share that stays put. A
-$\modelMinMovedRows \times \modelMinMovedCols$ block is the best any single
-swap can do.}
+Each cell carries its flat position. Shaded cells are the ones a transpose maps
+to themselves --- they are already in the right place. We skip them; a copy has
+to write them anyway. The smaller the block, the larger the share that stays
+put, so a $\modelMinMovedRows \times \modelMinMovedCols$ block is the best any
+single swap can do.}
 \label{fig:weight}
 \end{figure}

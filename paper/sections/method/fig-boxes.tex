@@ -5,17 +5,16 @@
 % labels are set in the paper's fonts at the sizes the generator asked for.
 % Nothing here scales the picture: a \resizebox around a diagram is what makes
 % one paper's figures come out with labels at four different sizes.
-\begin{figure}[!t]
+\begin{figure*}[!t]
 \centering
-\begin{tikzpicture}
-\node[inner sep=2pt] (figboxes) {\input{sections/method/_generated/boxes-fig.tex}};
-\draw[black,line width=0.5pt,rounded corners=2pt]
-  (figboxes.south west) rectangle (figboxes.north east);
-\end{tikzpicture}
-\caption{\capheadline{One swap, and the four parts it cuts the axes into.}
-The front part and the back part stay where they are. The two middle boxes
-trade places. Read together they are one $rows \times cols$ matrix, and each
-cell of it is a run of $D_{post}$ values that sit next to each other in memory.
-So swapping two groups of axes and transposing a matrix are the same move.}
+\input{sections/method/_generated/boxes-fig.tex}%
+\caption{\capheadline{How one swap cuts a shape into four boxes.}
+(a) The axes we have, and the order we want; shaded axes are the ones the
+permutation moves. (b) The four boxes a single swap cuts them into. A box is
+one or more neighbouring axes, so its extent is their product --- here the
+right box covers two axes. (c) After the swap: the two middle boxes have traded
+places and the outer two have not moved. Read together, the middle pair is one
+$rows \times cols$ matrix, and each of its cells is a run of $D_{post}$ values
+that sit next to each other in memory.}
 \label{fig:boxes}
-\end{figure}
+\end{figure*}

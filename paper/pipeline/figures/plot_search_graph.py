@@ -29,7 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from _common import ROOT, generated                      # noqa: E402
-from _diagram import SMALL, TINY, arrow, box, emit_figure, label  # noqa: E402
+from _diagram import (SMALL, TINY, arrow, cell, emit_figure,   # noqa: E402
+                      label, region)
 
 SRC = "figures/plot_search_graph.py"
 NOTE = "Weights from src/_plan.py; layout mirrors docs/dijkstra-animation.html."
@@ -127,7 +128,7 @@ def main() -> None:
     for (u, v), cost in sorted(edges.items()):
         if (u, v) in on_route:
             continue
-        body += arrow(*ends(u, v), lw=0.3, color="dmid", bend=BEND)
+        body += arrow(*ends(u, v), lw=0.35, color="dright", bend=BEND)
 
     for (u, v), cost in route:
         sx_, sy_, ex_, ey_ = ends(u, v)
@@ -145,11 +146,11 @@ def main() -> None:
 
     start_n, target_n = idx[tuple(range(r))], idx[TARGET]
     for n, order in enumerate(ORDERINGS):
-        fill = ("dlight" if n == start_n else
-                "daccentpale" if n == target_n else "dpale")
+        fill = ("dleft" if n == start_n else
+                "daccentpale" if n == target_n else "dpre")
         nm = "".join(NAMES[a] for a in order)
-        body += box(pos[n][0] - bw / 2, pos[n][1] - bh / 2, bw, bh, fill,
-                    f"({nm})", font=SMALL)
+        body += cell(pos[n][0] - bw / 2, pos[n][1] - bh / 2, bw, bh, fill,
+                     f"({nm})", font=SMALL, lw=0.5)
         if n == start_n:
             body += label(pos[n][0], pos[n][1] + bh / 2 + 3, "start",
                           font=TINY, anchor="south")
