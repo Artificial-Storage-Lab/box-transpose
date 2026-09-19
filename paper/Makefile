@@ -17,28 +17,23 @@ ALLTEX := $(shell find . -path ./role-model -prune -o -name '*.tex' -print)
 STY    := $(wildcard style/*.sty)
 DEPS   := $(ALLTEX) $(STY) refs.bib
 
-.PHONY: all clean distclean watch defs audit verify deck
+.PHONY: all clean distclean watch defs audit verify
 
 all: $(PDF)
 
 # Regenerate everything under sections/*/_generated/ from raw_data/ and src/:
 # the prose quantities, the table bodies, and the figures' TikZ.
+# The guard on each loop matters: a directory with no generators in it yet
+# otherwise leaves the glob unexpanded and hands python3 a literal "gen_*.py".
 defs:
-	cd pipeline/quantities && for g in gen_*.py; do python3 "$$g"; done
-	cd pipeline/tables && for g in gen_*.py; do python3 "$$g"; done
-	cd pipeline/figures && for g in plot_*.py; do python3 "$$g"; done
+	cd pipeline/quantities && for g in gen_*.py; do [ -e "$$g" ] && python3 "$$g"; done
+	cd pipeline/tables && for g in gen_*.py; do [ -e "$$g" ] && python3 "$$g"; done
+	cd pipeline/figures && for g in plot_*.py; do [ -e "$$g" ] || continue; python3 "$$g"; done
 
 # Fail if the prose states a number that no generator or allowed.txt entry
 # accounts for. See pipeline/quantities/readme.md.
 audit:
 	cd pipeline/quantities && python3 audit.py
-
-# The proposal presentation, proposal.pptx, for upload to Google Slides. It
-# reads the same generated macros the paper's prose cites, so it cannot state
-# a number the paper does not. Depends on defs for that reason.
-deck: defs
-	cd presentations && python3 render_equation.py && python3 build_deck.py
-	cd presentations && python3 preview_deck.py --check
 
 # defs + audit + a full build, in that order -- the whole point of the
 # pipeline is that these three together are what "the paper is honest" means.

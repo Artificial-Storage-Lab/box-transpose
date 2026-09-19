@@ -2,18 +2,19 @@
 
 LaTeX source for the box transpose write-up, set up for terminal editing.
 
-The document is currently the **CS 8045 project proposal**. Its section order
-follows the six components the proposal guidelines grade
-(`proposal_guidelines.pdf`), one section per component:
+The document is the **results paper**. The proposal was a separate deliverable
+and is no longer built from this tree; the milestone and simulation-setting
+sections it needed are gone.
 
-| # | Component | Section |
-| --- | --- | --- |
-| 1 | Title page | `\maketitle` + `sections/0-title` |
-| 2 | Statement of the problem | `sections/1-problem-statement` |
-| 3 | Difficulty analysis and proposed method (50 pts) | `sections/2-method/` |
-| 4 | Simulation setting | `sections/3-simulation-setting` |
-| 5 | Milestones and timeline | `sections/4-milestones/` |
-| 6 | References | `refs.bib` via `\bibliography` |
+| Section | Holds |
+| --- | --- |
+| `sections/1-problem` | what `.contiguous()` costs and why it matters |
+| `sections/method/` | box swaps, fixed points, the search, no calibration |
+| `sections/evaluation/` | setup, both tables, the three regimes |
+| `sections/3-limitations` | where the method is the wrong tool |
+| `sections/4-related` | prior work, and what we explicitly do not claim |
+| `sections/5-conclusion` | |
+| `sections/0-title` | team and responsibilities, set last |
 
 ## Build
 

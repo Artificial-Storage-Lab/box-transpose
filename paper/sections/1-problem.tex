@@ -1,0 +1,48 @@
+\section{The Problem}
+\label{sec:problem}
+
+\subsection{Changing the order of axes is free}
+
+Deep learning code changes the order of a tensor's dimensions often. In
+PyTorch, \texttt{permute} and \texttt{transpose} do
+this~\cite{pytorch_permute_docs, pytorch_transpose_docs}. They are free. They
+change a label. They do not move any data.
+
+\subsection{Fixing the layout is not free}
+
+After that, the data is in the wrong order in memory. Some operations will not
+run on it. Others run, but they use a slow path. They do not warn you.
+
+The normal fix is \texttt{.contiguous()}~\cite{pytorch_contiguous_2016}. It
+makes a copy. It asks for a new tensor. It writes every value into the right
+place. Then it throws the old tensor away.
+
+\subsection{The copy is the problem}
+
+While the copy runs, both tensors are in memory. So a tensor of $B$ bytes needs
+at least $2B$ bytes. The old one must stay until it has been read. The new one
+must exist to be written into. This is what a copy means. You cannot avoid it
+by changing the loop.
+
+If the machine is almost full, the job fails here. A 2026 PyTorch design
+document says non-contiguous tensors now appear all over modern
+training~\cite{pytorch_rfc_comms_2026}. It says some communication routines
+will not take them. It says the usual fixes either make a full copy or need a
+buffer as big as the data.
+
+There is a second problem. The copy is a large block of memory. It only lives
+for a short time. It appears in the middle of work that already uses a lot of
+memory. Earlier work shows this pattern causes
+fragmentation~\cite{rajbhandari2020zero}. Memory is free, but it is in small
+pieces. The next request needs one big piece and fails.
+
+\subsection{What we do}
+
+We fix the layout in place. We never ask for a second tensor. We break the
+reordering into small swaps. Each swap exchanges two groups of axes that sit
+next to each other. We store only a few hundred bytes while we work.
+
+Doing this in place is not new. Section~\ref{sec:related} lists the earlier
+work. Two things here are new. In more than two dimensions, this can do
+\emph{less work than a copy}. And we can tell which cases those are by looking
+at the shape, before we touch any data.

@@ -14,3 +14,10 @@
 # definition, a worked example drawn by hand, a citation year.
 #
 # No entries yet. See pipeline/quantities/readme.md for the rule.
+
+1-problem.tex:2          # "at least $2B$" -- the definition of an out-of-place copy's peak: source plus destination. Not measured.
+1-problem.tex:2026       # the year of the PyTorch communication RFC, in the sentence citing it.
+method/main.tex:0        # the right-hand side of the fixed-point congruence p(cols-1) = 0 (mod M).
+method/main.tex:1        # coefficients of Equation (2) and of the gcd bound around it: the -1 offsets and the +1 endpoint. Definitional.
+method/main.tex:2        # "$2N$ elements' worth of traffic" -- one read and one write per element, the definition of a copy's cost.
+3-limitations.tex:1      # "$D_{post}=1$" -- the degenerate suffix, which is what defines this regime.

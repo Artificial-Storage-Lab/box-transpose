@@ -1,0 +1,123 @@
+\section{How It Works}
+\label{sec:method}
+
+\subsection{Swapping boxes}
+\label{sec:boxes}
+
+A \emph{box} is one or more axes that sit next to each other. We treat a box as
+one unit. Their sizes multiply together, so a box acts like a single axis of
+that size.
+
+A \emph{swap} exchanges two boxes that sit next to each other. Any reordering
+of axes can be done as a list of swaps.
+
+Here is why that helps. Cut the axis list into four parts: a front part, a left
+box, a right box, and a back part. Call their sizes $D_{pre}$,
+$\mathit{rows}$, $\mathit{cols}$ and $D_{post}$. Swapping the two middle boxes
+is the same as transposing a $\mathit{rows} \times \mathit{cols}$ matrix. We do
+it once for each of the $D_{pre}$ front positions. Each cell of that matrix is
+a run of $D_{post}$ values that sit next to each other.
+
+This idea is not ours. It is the $\rho(i,j,k)$ operation from
+ITTPD~\cite{cheng2025ittpd}. Section~\ref{sec:related} says more. What is ours
+is how we run a swap, and how we choose which swaps to make.
+
+\subsection{Doing a swap with no spare room}
+
+You cannot move a value straight to where it belongs. Something else is already
+there. So you pick a value up. You put it where it goes. Now you are holding
+whatever was in that spot. You keep going. In the end you come back to where
+you started.
+
+That loop is called a \emph{cycle}. Walking it is called cycle
+following~\cite{gustavson2012cycleleader,dummit2003abstract}. The only thing
+you store is the one value in your hand. On a GPU that is one register per
+thread.
+
+In two dimensions this does not spread well over a GPU. You can only run as
+many cycles at once as there are cycles.
+Catanzaro~et~al.~\cite{catanzaro2014decomposition} say this plainly. A shape
+with nine cycles gets nine-way parallelism, even on a machine with hundreds of
+processors.
+
+With more dimensions that limit goes away. We repeat the swap $D_{pre}$ times.
+Each value we move is $D_{post}$ values wide. So the work splits into
+$D_{pre} \times \mathit{cycles} \times D_{post}$ pieces that can run at the
+same time. Those two extra numbers come from the axes around the swap. A
+two-dimensional method does not have them.
+
+\subsection{Skipping cells that are already correct}
+\label{sec:fixedpoints}
+
+Some cells are already in the right place. A transpose never moves the diagonal
+of a square matrix.
+
+\textbf{We skip those cells. A copy cannot.} \texttt{.contiguous()} is building
+a new tensor. It must write every position, even the ones that were already
+correct.
+
+There is a formula for how many cells stay put. The transpose sends position
+$p$ to $(p \bmod \mathit{cols})\,\mathit{rows} + \lfloor p/\mathit{cols}\rfloor$.
+In the middle of the array this is the same as multiplying by $\mathit{cols}$
+modulo $M = \mathit{rows}\cdot\mathit{cols}-1$. A cell stays put when
+$p(\mathit{cols}-1) \equiv 0 \pmod M$. That has
+$\gcd(\mathit{rows}-1,\mathit{cols}-1)$ answers. The last position also stays
+put. So the share of the tensor a swap touches is
+
+\begin{equation}
+\mathit{moved} = 1 - \frac{\gcd(\mathit{rows}-1,\,\mathit{cols}-1) + 1}
+                         {\mathit{rows}\cdot\mathit{cols}} .
+\label{eq:moved}
+\end{equation}
+
+That is our whole cost model. A copy reads every value and writes every value.
+It always moves $2N$ values' worth of traffic. In the cases where our method is
+worth using, both methods move data at the same speed. So the speed cancels
+out. Only the amount is left. That makes Equation~(\ref{eq:moved}) our
+predicted time as a share of the copy's time. No number in it was measured on a
+GPU. If it is below one, we do less work than the copy.
+
+Now the main point. Any method that builds output positions must go over the
+tensor at least once. It has to write every position. Ours does not. Swapping a
+$\modelMinMovedRows \times \modelMinMovedCols$ block moves $\modelMinMoved$ of
+the tensor. No single swap can do better. The reason is that
+$\gcd(\mathit{rows}-1,\mathit{cols}-1)$ is at most
+$\min(\mathit{rows},\mathit{cols})-1$, so the skipped share is at most
+$1/\max(\mathit{rows},\mathit{cols})$.
+
+Two things follow. Only a method that skips can do part of a pass. And two
+swaps can never add up to less than one pass. So \emph{beating
+\texttt{.contiguous()} and using a single swap are the same thing}.
+
+\subsection{Choosing which swaps to make}
+\label{sec:planning}
+
+There are many lists of swaps that reach the same order. They do not cost the
+same.
+
+We build a graph. Each way of ordering the axes is a point. Each legal swap is
+a line between two points. The weight on that line is how many bytes the swap
+moves. We know that number exactly from Equation~(\ref{eq:moved}). Then we run
+Dijkstra's algorithm to find the cheapest route.
+
+We do not remove any lines. We do not apply any cutoff to them. We only reject
+a finished route. If the cheapest route needs more than $\modelMaxSteps$ swaps,
+we return nothing. The caller then uses \texttt{.contiguous()}. Every swap
+rewrites the whole buffer, so a long route moves several tensors' worth of data.
+
+The search does not make us faster than a copy. Section~\ref{sec:fixedpoints}
+shows that needs a single swap, and you do not need a search to find one. The
+search matters for the longer routes. Nothing beats a copy there, but the
+search keeps us ahead of the other in-place methods.
+
+\subsection{Nothing is tuned}
+
+An older version of this work used three numbers measured on one GPU. There was
+a throughput knee, a routing cutoff, and an average bandwidth. All three are
+gone. The bandwidth cancelled out. The knee became a question about the shape
+instead of a measurement.
+
+We can check that the model knows where it works. Inside the region we claim,
+Equation~(\ref{eq:moved}) predicts the measured ratio to within
+$\modelErrIn\%$. Outside it, the error is about $\modelErrOut\%$. That is why
+the region exists.

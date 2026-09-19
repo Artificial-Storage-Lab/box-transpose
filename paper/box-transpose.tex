@@ -1,16 +1,21 @@
-% Box transpose — CS 8045 project proposal. Build with `make` — see README.md.
+% Box transpose — CS 8045 project report. Build with `make` — see README.md.
 %
 % Document skeleton only. Everything here is either a package/style decision
 % (style/) or the order sections appear in (sections/) — no prose, no floats,
 % no measured numbers live in this file.
 %
-% Section order follows the six components the proposal guidelines grade:
-%   1 title page            -> \maketitle plus sections/0-title
-%   2 statement of problem  -> sections/1-problem-statement
-%   3 difficulty and method -> sections/2-method
-%   4 simulation setting    -> sections/3-simulation-setting
-%   5 milestones            -> sections/4-milestones
-%   6 references            -> \bibliography, below
+% This is the results paper, not the proposal. The proposal is a separate
+% deliverable (presentations/), and the milestone and simulation-setting
+% sections it needed are gone from here.
+%
+% Section order:
+%   sections/0-title        team and responsibilities
+%   sections/1-problem      what .contiguous() costs and why it matters
+%   sections/method/        box swaps, fixed points, the search
+%   sections/evaluation/    setup, the two tables, the three regimes
+%   sections/3-limitations  where the method is the wrong tool
+%   sections/4-related      prior work, and what we do not claim
+%   sections/5-conclusion
 %
 % NOTE ON PATHS: LaTeX resolves \input relative to the directory pdflatex runs
 % in (paper/), not relative to the file doing the including. Every path here,
@@ -32,11 +37,10 @@
 % _generated/*.defs.tex as you add generators; pipeline/quantities/audit.py
 % fails the build if a hand-written section file carries a literal none of
 % them accounts for.
-\input{sections/2-method/_generated/plan.defs.tex}%
-\input{sections/2-method/_generated/constants.defs.tex}%
-\input{sections/2-method/_generated/planners-table.defs.tex}%
-\input{sections/2-method/_generated/steps-fig.defs.tex}%
-\input{sections/4-milestones/_generated/timeline-table.defs.tex}%
+\input{sections/method/_generated/model.defs.tex}%
+\input{sections/evaluation/_generated/results.defs.tex}%
+\input{sections/evaluation/_generated/methods-table.defs.tex}%
+\input{sections/evaluation/_generated/tiers-table.defs.tex}%
 
 \begin{document}
 
@@ -49,16 +53,43 @@
 \author{
 {\rm Kaveen Jayamanna \quad Alexis Newman}\\
 Kennesaw State University\\
-{\rm CS 8045 Advanced Algorithms --- Project Proposal}
+{\rm CS 8045 Advanced Algorithms}
 }
 
 \maketitle
 
+\begin{abstract}
+Changing the order of a tensor's axes in PyTorch is free. Fixing the layout
+afterwards is not. \texttt{.contiguous()} makes a copy, so peak memory doubles.
+On a machine that is almost full, the job fails there.
+
+We present \emph{box transpose}. It fixes the layout in place. We break the
+permutation into swaps of neighbouring groups of axes. Each swap is a matrix
+transpose. We carry it out by walking its cycles, holding one value in a
+register.
+
+Some cells are already in the right place. A copy still has to write them. We
+skip them. So box transpose can move only \emph{part} of the tensor, where
+every earlier method has to go over all of it. How large that part is comes
+from the shape in one line of arithmetic. So the method predicts its own
+speedup before touching any data, using no number measured on a GPU.
+
+We tested \resCases{} shapes at ranks \resRankLo{} to \resRankHi{}. Our method
+used \resBoxAux{} bytes against a \resTensorMB{}\,MB tensor. It beat three
+published in-place methods on \resWinIttpd{}, \resWinGl{} and \resWinGv{} of
+their cases. When the permutation leaves a large group of axes at the back
+alone, and the swap is one small square, it is \tierBeatsX{}$\times$ faster
+than \texttt{.contiguous()} itself. When no group survives at the back, it is
+the slowest method we measured. We say exactly where that line is.
+\end{abstract}
+
+\input{sections/1-problem}
+\input{sections/method/main}
+\input{sections/evaluation/main}
+\input{sections/3-limitations}
+\input{sections/4-related}
+\input{sections/5-conclusion}
 \input{sections/0-title}
-\input{sections/1-problem-statement}
-\input{sections/2-method/main}
-\input{sections/3-simulation-setting}
-\input{sections/4-milestones/main}
 
 \bibliographystyle{plain}
 \bibliography{refs}

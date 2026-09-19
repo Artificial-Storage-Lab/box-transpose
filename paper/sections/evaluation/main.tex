@@ -1,0 +1,89 @@
+\section{Results}
+\label{sec:eval}
+
+\subsection{How we tested}
+\label{sec:setup}
+
+We did not choose shapes by hand. Take a tensor with
+$N = \prod_{i=1}^{m} p_i^{a_i}$ values and rank $r$. Every valid shape comes
+from splitting each prime's exponent across the $r$ dimensions, so that
+$\sum_{j=1}^{r} b_{ij} = a_i$:
+
+\begin{equation}
+s = \left( \prod_{i=1}^{m} p_i^{b_{i1}},\ \prod_{i=1}^{m} p_i^{b_{i2}},\
+           \ldots,\ \prod_{i=1}^{m} p_i^{b_{ir}} \right).
+\label{eq:shapes}
+\end{equation}
+
+We draw from that whole set. So nobody picked the cases. We drop shapes with an
+axis of size one. Such an axis can move anywhere without touching a byte.
+
+The main test has \resCases{} cases at ranks \resRankLo{} to \resRankHi{}.
+Every tensor has \resElements{} float32 values, which is \resTensorMB{}\,MB. We
+ran them on a \resDevice{}. Each shape is paired with a permutation that leaves
+a group of axes at the back alone. That is what our method is built for.
+
+We ran a second test with \hardCases{} permutations picked at random. That
+covers what our method is not built for. Section~\ref{sec:limits} reports it.
+
+We compare against PyTorch \texttt{.contiguous()}. We also compare against our
+rebuilds of the three published in-place methods.
+Section~\ref{sec:related} lists them. We time every method with CUDA events
+after one warmup run. We check every answer against
+\texttt{permute(*perm).contiguous()} before it counts.
+
+Our method finished and gave the right answer on every case in both tests. It
+turned nothing away.
+
+\input{sections/evaluation/tab-methods}
+
+\subsection{Against everyone}
+
+Table~\ref{tab:methods} shows all \methTabCases{} cases. We used no routing
+here. We ran our method even on the cases our own rule says to skip.
+
+In the middle of the range we are \methTabIttpdX{}$\times$ faster than ITTPD,
+\methTabGlX{}$\times$ faster than Gomez-Luna, and \methTabGvX{}$\times$ faster
+than Gustavson. Case by case, we are faster on \resWinIttpd{} of
+\resWinIttpdOf{}, on \resWinGl{} of \resWinGlOf{}, and on \resWinGv{} of
+\resWinGvOf{}.
+
+The memory column matters too. \texttt{.contiguous()} needs a second tensor
+every time. We need \resBoxAux{} bytes. Gustavson needs \resGvAuxMB{}\,MB.
+ITTPD needs none. That is real, not a mistake. On these shapes its blocks fit
+in fast on-chip memory, so it never asks for global memory. Against ITTPD we
+win on speed, not on memory. We do not claim otherwise.
+
+\input{sections/evaluation/tab-tiers}
+
+\subsection{Three cases}
+\label{sec:gate}
+
+Table~\ref{tab:tiers} splits both tests by the two numbers from
+Section~\ref{sec:method}. We work out both from the shape before touching any
+data.
+
+The back group is large and the swap is one small square block. Here we are
+faster than everyone, including the copy. We won \tierBeatsCases{} of
+\tierBeatsCases{} cases, at \tierBeatsX{}$\times$ in the middle of the range.
+In the main test alone, our rule fires on \gateShare{}\% of shapes and wins
+\gateWins{} of \gateCases{}. That is \gateMedianX{}$\times$ in the middle and
+\gateBestX{}$\times$ at best.
+
+The back group is large but the swap does not qualify. Here we lose to the
+copy. We are still the best in-place choice, on \tierInplaceCases{} cases.
+
+The back group is too small. Here we are the worst. Section~\ref{sec:limits}
+covers it.
+
+\subsection{The prediction was right}
+
+We did not fit the boundary to the results. Equation~(\ref{eq:moved}) says a
+swap of a $\modelMinMovedRows \times \modelMinMovedCols$ block moves
+$\modelMinMoved$ of the tensor. So it should take $\modelMinMoved$ of the
+copy's time. From rank \resRankLo{} to rank \resRankHi{}, the measured times
+land on that value. The error inside the region is about $\modelErrIn\%$.
+
+The speedup comes from arithmetic, not from tuning. It does not depend on how
+well we wrote the kernel. It does not depend on which GPU we used. It depends
+only on how much of the tensor was already in the right place.

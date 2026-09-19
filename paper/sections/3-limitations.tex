@@ -1,0 +1,55 @@
+\section{Where It Falls Down}
+\label{sec:limits}
+
+\subsection{A small back group means no speed}
+
+Some permutations move the innermost axis. Then every way of breaking the job
+up has a swap with nothing behind it. For that swap, $D_{post}=1$.
+
+Now each value we move is a single number on its own. The memory system reads a
+whole cache line and uses four bytes of it. There is no way to group the work.
+
+Our second test measures this. We used \hardCases{} permutations picked at
+random. In \hardBigCases{} of them a back group survived. We were the best
+in-place method on \hardBigWins{} of those \hardBigCases{}. In the other
+\hardSmallCases{} no back group survived. We were the worst in-place method on
+every one. We took \hardSmallBoxLo{} to \hardSmallBoxHi{}\,ms. The copy took
+\hardSmallContLo{} to \hardSmallContHi{}\,ms. We were about
+$\hardSmallSlowdown\times$ slower.
+
+We still finish. We still ask for no extra memory. But here the published
+in-place methods are several times faster than we are. A real system would send
+these cases to one of them. We have not built that. We report the gap instead
+of hiding it.
+
+Rank~2 is always in this group. A plain matrix transpose has no back axes to
+leave alone.
+
+\subsection{More than one swap loses to the copy}
+
+Section~\ref{sec:fixedpoints} shows a single swap always moves at least
+$\modelMinMoved$ of the tensor. So a route with two or more swaps moves at
+least as much as a copy does. We are often still the best in-place choice
+there. But we are not faster than copying. A better search would not change
+that.
+
+\subsection{Planning is slow at high rank}
+
+The search runs over orderings of the axes. It stops as soon as it reaches the
+target. So the common cases, which need one swap, come back at once. But a hard
+permutation at rank~8 took several seconds to plan.
+
+A route depends only on the shape and the permutation. So we work it out once
+and reuse it. A much higher rank would need a search that aims at the target
+instead of spreading out in every direction.
+
+\subsection{One GPU}
+
+Every time in this paper comes from one \resDevice{}. The main speedup is
+arithmetic. Equation~(\ref{eq:moved}) has no hardware term in it. So it should
+hold on other machines. The comparisons against other systems are
+measurements, and those need running again elsewhere.
+
+We should also say this. Our rebuild of ITTPD runs its on-chip path about ten
+times slower than a plain copy on these shapes. That may be our rebuild rather
+than the published method. If so, our lead over it is smaller than we report.

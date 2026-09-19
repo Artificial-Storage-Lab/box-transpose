@@ -1,0 +1,50 @@
+\section{Earlier Work}
+\label{sec:related}
+
+\subsection{Transposing a matrix in place}
+
+Catanzaro, Keller and Garland~\cite{catanzaro2014decomposition} split a matrix
+transpose into row and column shuffles, with a rotation in between. Their
+method needs a temporary buffer. Its cycle-walking step runs one block per
+cycle. So it can only spread as wide as the number of cycles. They say this
+themselves.
+
+Gustavson, Karlsson and K\aa{}gstr\"{o}m~\cite{gustavson2012cycleleader} work
+out where each cycle starts using number theory. They do not have to search for
+it. We use the same idea for square blocks. There a transpose is its own
+inverse, so the test becomes one comparison.
+
+Sung et al.~\cite{sung2012pttwac} and G\'{o}mez-Luna et
+al.~\cite{gomezluna2016inplace} pad dimensions to sizes that factor well.
+Padding makes the array bigger. That works against saving memory. In our test
+the worst case asked for many times the size of the tensor.
+
+\subsection{Permuting more than two dimensions in place}
+
+The closest work is ITTPD~\cite{cheng2025ittpd}. It breaks an $N$-D permutation
+into block transpositions called $\rho(i,j,k)$. \textbf{That is the same
+operation as our box swap. We do not claim it as ours.}
+
+We differ in two ways.
+
+First, ITTPD runs each step with Catanzaro's two-dimensional method. That needs
+a temporary buffer of $\max(M,K)\cdot W$. It also goes over the data at least
+once per step. We walk cycles directly. By Section~\ref{sec:fixedpoints} we can
+go over only part of the data.
+
+Second, ITTPD must choose its breakdown to fit a memory budget. When two
+choices tie, it picks on memory rather than on time. Our memory cost is tiny
+whichever breakdown we pick. So we are free to pick the cheapest one.
+
+Where a back group of axes survives, we were faster on \resWinIttpd{} of
+\resWinIttpdOf{} cases. Where it does not, ITTPD is faster than we are.
+Section~\ref{sec:limits} has those numbers.
+
+\subsection{Copying out of place}
+
+The thing we are replacing is PyTorch's own
+\texttt{.contiguous()}~\cite{pytorch_contiguous_2016,pytorch_2x}. It is fast. It
+spreads perfectly over a GPU. It pays for that with a second tensor. Work on
+memory pressure in large-model training~\cite{rajbhandari2020zero} and the
+PyTorch communication document~\cite{pytorch_rfc_comms_2026} both treat that
+cost as a real problem, not a theoretical one.

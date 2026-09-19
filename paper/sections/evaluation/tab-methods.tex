@@ -1,0 +1,24 @@
+% Table (tab:methods). Body and caption macros: _generated/methods-table.tex
+% and .defs.tex, written by pipeline/tables/gen_table_methods.py from
+% raw_data/dpost_sweep/.
+%
+% table*, not table. Five columns -- a method name plus two byte-counts wide
+% enough to carry a unit -- have a natural width well past the 241pt of a
+% single USENIX column. tabular* does NOT shrink to fit: it only distributes
+% slack, so when the content is already too wide it runs past the column and
+% over the neighbouring text WITHOUT raising an Overfull warning. That is why
+% this has to be caught by eye, and why the full measure is the fix rather
+% than \small-ing the type further.
+\begin{table*}[!t]
+\centering
+\caption{\capheadline{Every method, every case, no routing.}
+\methTabCases{} shape and permutation pairs at ranks \resRankLo{}--\resRankHi{},
+\resTensorMB{}\,MB per tensor, on a \resDevice{}. We run our method on all of
+them, including the ones our own rule would turn away.}
+\label{tab:methods}
+\small
+\begin{minipage}{0.72\linewidth}
+\centering
+\input{sections/evaluation/_generated/methods-table.tex}%
+\end{minipage}
+\end{table*}

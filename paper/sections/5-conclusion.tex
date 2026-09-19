@@ -1,0 +1,24 @@
+\section{Summary}
+\label{sec:conclusion}
+
+Box transpose fixes a tensor's layout in place. We tested it on \resCases{}
+sampled shapes at ranks \resRankLo{} to \resRankHi{}. We also tested it on
+\hardCases{} permutations picked at random. It found a working plan and gave
+the right answer every time. It used \resBoxAux{} bytes of scratch space. A
+copy would have used a second tensor of \resTensorMB{}\,MB.
+
+When a permutation leaves a group of axes at the back alone, we are the fastest
+in-place method we measured. We beat ITTPD, Gomez-Luna and Gustavson on
+\resWinIttpd{}, \resWinGl{} and \resWinGv{} of their cases.
+
+When the swap is also one small square block, we beat PyTorch's own copy. We
+are \tierBeatsX{}$\times$ faster. The reason is simple. We skip the cells that
+are already in the right place. A copy cannot.
+
+We work out both tests from the shape, before touching any data. No number in
+the cost model was measured on a GPU.
+
+When the tests fail, our method is the slowest one we compared. That happens
+when the permutation moves the innermost axis. We are about
+$\hardSmallSlowdown\times$ slower there. We report it instead of routing around
+it.
