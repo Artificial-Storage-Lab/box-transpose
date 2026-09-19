@@ -1,0 +1,23 @@
+% Figure (fig:graph). Body: _generated/graph-fig.tex, written by
+% pipeline/figures/plot_search_graph.py, whose weights come from the shipped
+% planner rather than from a table typed here.
+%
+% figure*, not figure: six nodes laid out as the animation lays them out need
+% the full two-column measure. At 241pt the node boxes are under 40pt wide and
+% the edge labels collide.
+\begin{figure*}[!t]
+\centering
+\begin{tikzpicture}
+\node[inner sep=2pt] (figgraph) {\input{sections/method/_generated/graph-fig.tex}};
+\draw[black,line width=0.5pt,rounded corners=2pt]
+  (figgraph.south west) rectangle (figgraph.north east);
+\end{tikzpicture}
+\caption{\capheadline{The graph the planner searches.}
+Each node is one way of ordering the axes. Each arrow is a legal swap. The
+cheapest route is drawn in orange with the bytes each of its swaps moves. The
+weights are not equal, so the cheapest route is not simply the shortest one.
+This is the same example, and the same layout, as the step-by-step animation in
+\texttt{docs/dijkstra-animation.html}; the generator checks its cost model
+against the planner's, so the two cannot drift apart.}
+\label{fig:graph}
+\end{figure*}
