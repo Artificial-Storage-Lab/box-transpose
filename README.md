@@ -155,10 +155,26 @@ It reads the micro-benchmark sweep from `$BT_MICRO_RESULTS`, defaulting to
 `calibration/find_edge_costs/micro_benchmark_results.jsonl` — run
 `micro_benchmark.py` first to produce it.
 
-`docs/dijkstra-animation.html` is a standalone page (open it in a browser, no
-server needed) that steps through the planner one swap at a time on a
-`(2,3,4) -> (2,1,0)` example: the pool, the cost of each candidate swap, and why
-each one is pushed or skipped.
+Two standalone pages, both openable straight from disk with no server.
+
+`docs/box-split.html` steps through how a rank-6 shape is cut into the four
+boxes of a single swap -- `D_pre`, the left box, the right box, `D_post` --
+and then through all three swaps of a real plan for
+`(2,3,4,5,6,7) -> (1,0,2,5,4,3)`. That route is the planner's own, and it was
+picked because it happens to contain every shape of split: one swap with
+`D_pre` empty, one with all four boxes non-empty, and one with `D_post` empty.
+An empty box has extent 1 and drops out of the product, which the page calls
+out where it happens.
+
+`docs/dijkstra-animation.html` steps through the search itself, one swap at a
+time, on a `(2,3,4) -> (2,1,0)` example: the pool, the cost of each candidate
+swap, and why each one is pushed or skipped.
+
+Both carry the same cost model as `src/_plan.py` -- `gcd(rows-1, cols-1) + 1`
+fixed points, bytes as the weight -- and both are checked against it. They were
+not always in step: until the calibrated constants came out, the planner
+reported zero fixed points during the search while the animation counted them
+properly, so the two disagreed on every edge weight.
 
 ### The paper
 

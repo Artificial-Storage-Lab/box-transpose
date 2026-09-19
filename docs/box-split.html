@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Box-Following: The Four-Box Split</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f8fafc; font-family: 'Courier New', monospace; overflow: hidden; }
+
+#stage { display: block; width: 100%; height: calc(100vh - 54px); }
+
+#bar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 54px;
+  background: #fff; border-top: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 14px; padding: 0 24px;
+}
+.btn {
+  padding: 8px 22px; border-radius: 7px; cursor: pointer;
+  font-family: inherit; font-size: 0.9rem; font-weight: bold;
+  border: none; transition: background .1s;
+}
+.btn-go  { background: #1d4ed8; color: #fff; }
+.btn-go:hover:not(:disabled) { background: #1e40af; }
+.btn-go:disabled { background: #cbd5e1; cursor: default; }
+.btn-rst { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.btn-rst:hover:not(:disabled) { background: #e2e8f0; }
+.btn-rst:disabled { color: #cbd5e1; cursor: default; }
+#status { font-size: 0.9rem; color: #475569; flex: 1; }
+#icount { font-size: 0.85rem; color: #94a3b8; margin-left: auto; }
+
+.t-title { font-size: 12px; fill: #94a3b8; }
+.t-band  { font-size: 12px; fill: #fff; font-weight: bold; text-anchor: middle; dominant-baseline: middle; }
+.t-cell  { font-size: 13px; text-anchor: middle; dominant-baseline: middle; }
+.t-ext   { font-size: 11px; fill: #64748b; text-anchor: middle; dominant-baseline: middle; }
+.t-ext-b { font-size: 11px; fill: #1e293b; font-weight: bold; text-anchor: middle; dominant-baseline: middle; }
+.t-note  { font-size: 13px; fill: #475569; }
+.t-num   { font-size: 13px; fill: #1e293b; }
+.t-cell-m{ font-size: 13px; fill: #94a3b8; text-anchor: middle; dominant-baseline: middle; }
+.t-empty { font-size: 12px; fill: #64748b; font-style: italic; text-anchor: middle; dominant-baseline: middle; }
+</style>
+</head>
+<body>
+
+<svg id="stage" viewBox="0 0 1180 530" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#c2571a"/></marker>
+  </defs>
+  <g id="gRows"></g>
+</svg>
+
+<div id="bar">
+  <button class="btn btn-rst" id="btnPrev">&#9664; Back</button>
+  <button class="btn btn-go"  id="btnNext">Next &#9654;</button>
+  <button class="btn btn-rst" id="btnReset">Reset</button>
+  <span id="status"></span>
+  <span id="icount"></span>
+</div>
+
+<script>
+'use strict';
+
+// ── the worked example ───────────────────────────────────────────
+// Shape and target chosen because the planner's own cheapest route for them
+// happens to contain all three shapes of split: one with D_pre empty, one
+// with every box non-empty, and one with D_post empty. Nothing here is
+// contrived to make that happen -- run src/_plan.py on the same pair and you
+// get the same three swaps.
+const SHAPE  = [2, 3, 4, 5, 6, 7];
+const TARGET = [1, 0, 2, 5, 4, 3];
+const ELEM_BYTES = 4, RW_PASSES = 2;
+
+// The route src/_plan.py returns for (SHAPE, TARGET), as (i, j, k) triples.
+const ROUTE = [[0, 1, 2], [3, 4, 5], [3, 5, 6]];
+
+// ── the cost model, same as src/_plan.py ─────────────────────────
+const prod = a => a.reduce((x, y) => x * y, 1);
+function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
+
+// Cells a rows x cols transpose maps to themselves. Closed form; the planner
+// uses exactly this, and it agrees with walking the cycles.
+function fixedPoints(rows, cols) { return gcd(rows - 1, cols - 1) + 1; }
+
+function splitOf(order, i, j, k) {
+  const dims = order.map(a => SHAPE[a]);
+  const rows = prod(dims.slice(i, j)), cols = prod(dims.slice(j, k));
+  const dPre = prod(dims.slice(0, i)), dPost = prod(dims.slice(k));
+  const fixed = fixedPoints(rows, cols);
+  const moved = rows * cols - fixed;
+  return {
+    i, j, k, rows, cols, dPre, dPost, fixed, moved,
+    bytes: dPre * moved * dPost * ELEM_BYTES * RW_PASSES,
+    preEmpty: i === 0, postEmpty: k === order.length,
+    after: [...order.slice(0, i), ...order.slice(j, k),
+            ...order.slice(i, j), ...order.slice(k)],
+  };
+}
+
+// ── build the steps ──────────────────────────────────────────────
+const START = SHAPE.map((_, n) => n);
+const STEPS = [];
+// Two beats per swap. First the cut is drawn onto the shape we currently
+// have -- the boxes are a way of reading that shape, nothing has moved yet.
+// Then the swap happens and that shape becomes the previous one. Showing the
+// separation on the current shape before anything moves is what makes the
+// boxes read as a description rather than as a result.
+STEPS.push({ kind: 'intro', prev: null, cur: START, s: null, n: -1 });
+let cur = START;
+ROUTE.forEach(([i, j, k], n) => {
+  const sp = splitOf(cur, i, j, k);
+  STEPS.push({ kind: 'cut',  prev: null, cur, s: sp, n });
+  STEPS.push({ kind: 'swap', prev: cur, cur: sp.after, s: sp, n });
+  cur = sp.after;
+});
+
+// A sanity check the page runs on itself.
+console.assert(cur.join() === TARGET.join(),
+  'ROUTE does not reach TARGET -- it is out of step with src/_plan.py');
+
+// ── drawing ──────────────────────────────────────────────────────
+const NS = 'http://www.w3.org/2000/svg';
+const COL = {
+  pre:   '#dce9f2', left: '#a9cfe3', right: '#6fa8c9', post: '#cfe0ec',
+  band:  '#2e5a75', idle: '#ffffff', rim: '#16202a',
+  accent:'#c2571a', accentPale: '#f6e2d2', ground: '#f4f8fb', frame: '#3e4c59',
+};
+const X0 = 150, CW = 132, CH = 44, EMPTY_W = 88;
+const PREVY = 100, CURY = 320, TARGETY = 440;
+// With no previous row the other two would sit in the lower half of the
+// canvas with the whole top empty. Centre them instead: same gap between the
+// pair, but the pair itself centred on the same axis the three-row layout
+// uses, so nothing appears to jump when the previous row arrives.
+const GAP = TARGETY - CURY;
+const SOLO_CUR = (PREVY + TARGETY + CH) / 2 - GAP / 2 - CH / 2;
+const SOLO_TARGET = SOLO_CUR + GAP;
+
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function rect(p, x, y, w, h, fill, stroke, sw, rx, dash) {
+  const a = { x, y, width: w, height: h, fill,
+    stroke: stroke || COL.rim, 'stroke-width': sw === undefined ? 1 : sw,
+    rx: rx === undefined ? 3 : rx };
+  if (dash) a['stroke-dasharray'] = dash;
+  return el('rect', a, p);
+}
+function text(p, x, y, s, cls, extra) {
+  const t = el('text', Object.assign({ x, y, class: cls }, extra || {}), p);
+  t.textContent = s;
+  return t;
+}
+
+// The four boxes of a split, each with the axes it covers. An empty box keeps
+// its place in the list and is given a narrow slot of its own -- drawing
+// nothing for it, which is what this page did first, makes a swap look like it
+// has three boxes rather than four with one of them empty.
+function boxesFor(order, s) {
+  const r = order.length;
+  return [
+    { a: 0,   b: s.i, fill: COL.pre,   name: 'D_pre',  ext: s.dPre },
+    { a: s.i, b: s.j, fill: COL.left,  name: 'left box (rows)',  ext: s.rows },
+    { a: s.j, b: s.k, fill: COL.right, name: 'right box (cols)', ext: s.cols },
+    { a: s.k, b: r,   fill: COL.post,  name: 'D_post', ext: s.dPost },
+  ].map(b => Object.assign(b, {
+    empty: b.a === b.b,
+    // The factors behind the extent. A bare "= 840" says nothing about what
+    // 840 counts or where it came from; the product does both.
+    factors: order.slice(b.a, b.b).map(a => SHAPE[a]).join(' x '),
+  }));
+}
+
+// Where each axis slot sits, left to right. An empty box takes a narrow slot
+// of its own and pushes what follows it along -- and every row on screen is
+// laid out from the SAME offsets, so a cell in `current shape` sits directly
+// above the cell in `target shape` and `after` it should be compared with.
+// Laying each row out independently, which this page did first, shifted the
+// rows against each other on exactly the steps with an empty box, which is
+// when a reader most needs to line them up.
+function columns(order, s) {
+  const xs = [];
+  if (!s) {
+    for (let t = 0; t < order.length; t++) xs.push(t * CW);
+    return { xs, width: order.length * CW, slots: null };
+  }
+  let x = 0;
+  const slots = boxesFor(order, s).map(b => {
+    const w = b.empty ? EMPTY_W : (b.b - b.a) * CW;
+    const o = Object.assign({}, b, { x, w });
+    if (!b.empty) for (let t = b.a; t < b.b; t++) xs[t] = x + (t - b.a) * CW;
+    x += w;
+    return o;
+  });
+  return { xs, width: x, slots };
+}
+
+function drawRow(p, order, y, cols, label, muted, boxes) {
+  text(p, X0 - 20, y + CH / 2, label, 't-note', { 'text-anchor': 'end' });
+  if (boxes && cols.slots) {
+    cols.slots.forEach(b => {
+      const x = X0 + b.x;
+      rect(p, x, y - 30, b.w, CH + 74, b.fill, COL.rim, 1, 5,
+           b.empty ? '4 3' : null);
+      rect(p, x, y - 30, b.w, 20, COL.band, COL.band, 1, 5);
+      text(p, x + b.w / 2, y - 20, b.name, 't-band');
+      text(p, x + b.w / 2, y + CH + 16,
+           b.empty ? 'no axes' : b.factors, 't-ext');
+      text(p, x + b.w / 2, y + CH + 32,
+           '= ' + b.ext.toLocaleString() + (b.ext === 1 ? ' element' : ' elements'), 't-ext-b');
+      if (b.empty) text(p, x + b.w / 2, y + CH / 2, 'empty', 't-empty');
+    });
+  }
+  order.forEach((a, t) => {
+    if (cols.xs[t] === undefined) return;
+    const x = X0 + cols.xs[t] + 5;
+    rect(p, x, y, CW - 10, CH, muted ? COL.ground : COL.idle,
+         muted ? '#b8c4ce' : COL.rim, 1, 3);
+    text(p, x + (CW - 10) / 2, y + CH / 2, 'a' + a + ' = ' + SHAPE[a],
+         muted ? 't-cell-m' : 't-cell');
+  });
+}
+
+function render(n) {
+  const st = STEPS[n];
+  const gR = document.getElementById('gRows');
+  gR.innerHTML = '';
+  const cols = columns(st.prev || st.cur, st.s);
+
+  if (st.kind === 'swap') {
+    drawRow(gR, st.prev, PREVY, cols, 'previous shape', false, true);
+    const mid = X0 + cols.width / 2;
+    el('path', { d: 'M ' + mid + ' ' + (PREVY + CH + 50) +
+                    ' L ' + mid + ' ' + (CURY - 14),
+                 stroke: COL.accent, 'stroke-width': 2.5, fill: 'none',
+                 'marker-end': 'url(#arr)' }, gR);
+  }
+  // On a cut step the boxes go on the current shape: this is the shape we
+  // have, read as four boxes. Nothing has moved.
+  const solo = st.kind === 'intro';
+  drawRow(gR, st.cur,
+          st.kind === 'cut' ? PREVY : solo ? SOLO_CUR : CURY,
+          cols, 'current shape', false, st.kind === 'cut');
+  drawRow(gR, TARGET, solo ? SOLO_TARGET : TARGETY, cols, 'target shape',
+          true, false);
+
+  const swapOf = 'swap ' + (st.n + 1) + ' of ' + ROUTE.length;
+  document.getElementById('status').textContent =
+    st.kind === 'intro' ? 'six axes, and the order we want'
+    : st.kind === 'cut' ? swapOf + ' \u2014 read the current shape as four boxes'
+    : swapOf + ' \u2014 the middle two trade places'
+      + (st.cur.join() === TARGET.join() ? '  \u2014  target reached' : '');
+  document.getElementById('icount').textContent = 'step ' + (n + 1) + ' / ' + STEPS.length;
+  document.getElementById('btnNext').disabled = n === STEPS.length - 1;
+  document.getElementById('btnPrev').disabled = n === 0;
+  document.getElementById('btnReset').disabled = n === 0;
+}
+
+let at = 0;
+render(at);
+document.getElementById('btnNext').onclick  = () => render(at = Math.min(at + 1, STEPS.length - 1));
+document.getElementById('btnPrev').onclick  = () => render(at = Math.max(at - 1, 0));
+document.getElementById('btnReset').onclick = () => render(at = 0);
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') document.getElementById('btnNext').click();
+  if (e.key === 'ArrowLeft')  document.getElementById('btnPrev').click();
+});
+</script>
+</body>
+</html>
