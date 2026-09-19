@@ -104,6 +104,18 @@ class SwapStep:
     def kind(self) -> str:
         return "block_swap" if self.left_len > 1 or self.right_len > 1 else "axis_swap"
 
+    @property
+    def moved_fraction(self) -> float:
+        """Share of the tensor this one swap touches.
+
+        The part of the weight that actually decides anything: d_pre and
+        d_post cancel out of any comparison between swaps of the same tensor
+        (see make_step). Below 1 always -- a swap never moves more than the
+        whole tensor -- and at best 0.5, on a 2x2 block.
+        """
+        return self.bytes_moved / (self.d_pre * self.rows * self.cols
+                                   * self.d_post * 2 * 4)
+
 
 @dataclass(frozen=True)
 class PermutePlan:
@@ -158,6 +170,20 @@ def make_step(
     moved_positions = d_mid - fixed
     if moved_positions == 0:
         return None                      # every cell is fixed: the swap is a no-op
+
+    # The four boxes partition the tensor, so d_pre * d_mid * d_post is N for
+    # every swap of it, whatever the cut. That has a consequence worth knowing
+    # before touching this line: the weight below equals
+    # 2 * elem_bytes * N * (moved_positions / d_mid), and the leading factor is
+    # the same for every edge of a given tensor. So d_pre and d_post SCALE the
+    # weight but cannot RANK it -- searching on moved_positions / d_mid alone
+    # returns the identical plan, verified over random permutations at ranks
+    # 3 to 6.
+    #
+    # They are kept because the number is then real bytes, which is checkable
+    # against a measurement, comparable across tensors, and what moved_ratio
+    # and the paper's prediction are built from. A bare fraction is none of
+    # those. Integer arithmetic throughout, so the weight is exact.
     bytes_moved = d_pre * moved_positions * d_post * elem_bytes * 2
     new_axes = axes[:i] + axes[j:k] + axes[i:j] + axes[k:]
     return SwapStep(

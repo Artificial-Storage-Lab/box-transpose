@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  /* standalone reset — mirrors the artifact host so this file renders the same offline */
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Four Boxes In Space</title>
+<style>
+  :root {
+    --ground:#eceff2; --surface:#fff; --surface-2:#f5f7f9;
+    --ink:#0f151a; --ink-2:#4a5760; --ink-3:#7a8792;
+    --line:#d6dde3; --line-2:#bcc6ce;
+    --pre:#d9662b; --rows:#2a7fc9; --cols:#12946c; --post:#9a55c4;
+    --mid:#0f6f9e; --mid-bg:#e4f0f5;
+    --stay:#0f766e; --scene:#e3e8ec; --cube:#9aa6b0;
+    --shadow:0 1px 2px rgba(15,21,26,.06), 0 10px 28px rgba(15,21,26,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:#0b1014; --surface:#141c22; --surface-2:#1a232a;
+      --ink:#e9eff3; --ink-2:#a5b3bd; --ink-3:#74828c;
+      --line:#283239; --line-2:#3a464f;
+      --pre:#f08a4e; --rows:#5aa9ec; --cols:#33c396; --post:#bd82e0;
+      --mid:#63b8dd; --mid-bg:#15303d;
+      --stay:#5ed6c4; --scene:#101820; --cube:#6d7b87;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:#0b1014; --surface:#141c22; --surface-2:#1a232a;
+    --ink:#e9eff3; --ink-2:#a5b3bd; --ink-3:#74828c;
+    --line:#283239; --line-2:#3a464f;
+    --pre:#f08a4e; --rows:#5aa9ec; --cols:#33c396; --post:#bd82e0;
+    --mid:#63b8dd; --mid-bg:#15303d;
+    --stay:#5ed6c4; --scene:#101820; --cube:#6d7b87;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.35);
+  }
+
+  body { background:var(--ground); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1680px; margin:0 auto; padding-inline:16px; padding-block:26px 56px; display:flex; flex-direction:column; gap:18px; }
+  h1 { font-size:clamp(23px,5vw,32px); font-weight:700; letter-spacing:-.02em; margin:0; text-wrap:balance; }
+  .lede { margin:0; color:var(--ink-2); max-width:64ch; }
+  h2 { font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-3); margin:0 0 11px; }
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; box-shadow:var(--shadow); }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; font-variant-numeric:tabular-nums; }
+
+  /* ---- legend of the four boxes, with d_mid bracketing the middle pair ---- */
+  .legend-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px 1px; }
+  @media (max-width:680px){ .legend-grid { grid-template-columns:repeat(2,1fr); } }
+  .midbar {
+    grid-column:2 / 4; display:flex; align-items:center; justify-content:center; gap:9px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; font-weight:600; letter-spacing:.06em;
+    color:var(--mid); background:var(--mid-bg); border:1px solid var(--mid);
+    border-bottom:0; border-radius:8px 8px 0 0; padding:5px 10px;
+  }
+  .midbar .tail { flex:1; height:1px; background:var(--mid); opacity:.45; }
+  @media (max-width:680px){ .midbar { grid-column:1 / 3; } }
+  .boxrow { grid-column:1 / -1; display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  @media (max-width:680px){ .boxrow { grid-template-columns:repeat(2,1fr); } }
+  .box { background:var(--surface); padding:12px 13px; display:flex; flex-direction:column; gap:3px; text-align:left; border:0; cursor:default; font:inherit; color:inherit; border-top:3px solid transparent; }
+  .box.is-mid { background:var(--mid-bg); }
+
+  .box .nm { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; font-weight:600; display:flex; align-items:center; gap:7px; }
+  .box .sw { width:11px; height:11px; border-radius:3px; flex:0 0 auto; }
+  .box .sz { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:22px; font-weight:600; letter-spacing:-.02em; }
+  .box .rl { font-size:11.5px; color:var(--ink-3); }
+  .box .rl .dir { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .box.b-pre { border-top-color:var(--pre); }   .box.b-pre .sw { background:var(--pre); }   .box.b-pre .nm { color:var(--pre); }
+  .box.b-rows { border-top-color:var(--rows); } .box.b-rows .sw { background:var(--rows); } .box.b-rows .nm { color:var(--rows); }
+  .box.b-cols { border-top-color:var(--cols); } .box.b-cols .sw { background:var(--cols); } .box.b-cols .nm { color:var(--cols); }
+  .box.b-post { border-top-color:var(--post); } .box.b-post .sw { background:var(--post); } .box.b-post .nm { color:var(--post); }
+  .box input[type=range] { width:100%; margin:4px 0 0; }
+  .box.b-pre input { accent-color:var(--pre); } .box.b-rows input { accent-color:var(--rows); }
+  .box.b-cols input { accent-color:var(--cols); } .box.b-post input { accent-color:var(--post); }
+
+  /* ---- side by side: the 4D block and the flat memory it actually lives in ---- */
+  .mem { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+         box-shadow:var(--shadow); padding:14px; display:flex; flex-direction:column; gap:9px; min-width:0; }
+  .mem-head { display:flex; flex-direction:column; gap:2px; }
+  .mem-title { font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-3); }
+  .mem-sub { font-size:12px; color:var(--ink-3);
+             font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .mem-scroll { overflow:hidden; }
+  .mem-grid { position:relative; min-height:40px; margin-left:5px; }
+  .slot { position:absolute; z-index:1; border-radius:3px; background:var(--cube);
+          transition:transform .62s cubic-bezier(.4,0,.2,1), background-color .18s, opacity .18s, box-shadow .18s;
+          will-change:transform; cursor:pointer; }
+  .slot.stay { background:var(--stay); }
+  .slot.dim { opacity:.14; }
+  .slot.iso { background:var(--mid); }
+  .slot.sib { background:var(--mid); opacity:.3; }
+  .slot.sel { box-shadow:0 0 0 2px var(--ink); z-index:3; }
+  .copyband { position:absolute; border-radius:7px; border:1px dashed var(--pre);
+              background:var(--pre); opacity:.11; z-index:0; pointer-events:none; }
+  .copytag { position:absolute; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+             font-size:9.5px; color:var(--pre); letter-spacing:.04em; z-index:2; }
+  .addr { position:absolute; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+          font-size:9.5px; color:var(--ink-3); line-height:1; user-select:none; }
+  @media (prefers-reduced-motion: reduce){ .slot { transition:none; } }
+
+  /* ---- three panels: shape -> block -> memory ---- */
+  .trio { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1.6fr) minmax(0,1.15fr);
+          gap:14px; align-items:stretch; }
+  @media (max-width:1180px){ .trio { grid-template-columns:1fr; } }
+  .phead { display:flex; align-items:center; gap:8px; }
+  .pnum { width:18px; height:18px; border-radius:50%; background:var(--ink); color:var(--surface);
+          font-size:11px; font-weight:700; display:grid; place-items:center; flex:0 0 auto; }
+  .ptitle { font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-3); }
+  .spanel { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+            box-shadow:var(--shadow); padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0; }
+
+  .axis-row { position:relative; min-height:96px; margin-top:14px; }
+  .brk { position:absolute; top:50%; transform:translateY(-50%);
+         font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+         font-size:34px; font-weight:300; color:var(--ink-3); line-height:1; }
+  .axis { position:absolute; top:0; border-radius:8px; padding:8px 6px 9px;
+          border:1px solid var(--line); border-top:3px solid var(--line-2);
+          background:var(--surface-2); display:flex; flex-direction:column;
+          align-items:center; gap:1px; z-index:1;
+          transition:transform .55s cubic-bezier(.4,0,.2,1);
+          will-change:transform; }
+  @media (prefers-reduced-motion: reduce){ .axis { transition:none; } }
+  .axis .an { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+              font-size:11px; font-weight:700; letter-spacing:-.01em; }
+  .axis .av { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+              font-size:24px; font-weight:600; line-height:1.15; }
+  .axis .as { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+              font-size:9.5px; color:var(--ink-3); white-space:nowrap; }
+  .axis.a-pre  { border-top-color:var(--pre); }  .axis.a-pre .an  { color:var(--pre); }
+  .axis.a-rows { border-top-color:var(--rows); } .axis.a-rows .an { color:var(--rows); }
+  .axis.a-cols { border-top-color:var(--cols); } .axis.a-cols .an { color:var(--cols); }
+  .axis.a-post { border-top-color:var(--post); } .axis.a-post .an { color:var(--post); }
+  .midbr { position:absolute; border:1px dashed var(--mid); border-radius:10px;
+           background:var(--mid-bg); opacity:.6; pointer-events:none; z-index:0; }
+  .midbr-tag { position:absolute; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+               font-size:9.5px; color:var(--mid); letter-spacing:.06em; text-align:center; }
+  .comma { position:absolute; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+           font-size:20px; color:var(--ink-3); top:50%; transform:translateY(-50%); }
+  .shape-line { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px;
+                color:var(--ink-2); line-height:1.8; }
+  .shape-line b { color:var(--ink); }
+  .shape-line .mid { color:var(--mid); }
+
+  /* ---- scene ---- */
+  .stage { position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden;
+           background:var(--scene); box-shadow:var(--shadow); display:flex; flex-direction:column; }
+  .stage-top { display:flex; align-items:center; justify-content:space-between; gap:12px;
+               flex-wrap:wrap; padding:12px 14px 10px; background:var(--surface);
+               border-bottom:1px solid var(--line); }
+  #cv { display:block; width:100%; height:560px; flex:1; touch-action:none; cursor:grab; }
+  #cv.grabbing { cursor:grabbing; }
+  @media (max-width:560px){ #cv { height:420px; } }
+  .stage-hint { position:absolute; left:12px; bottom:10px; font-size:11.5px; color:var(--ink-3); pointer-events:none; letter-spacing:.02em; }
+  .stage-bar { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; }
+  .btn { font:inherit; font-size:12.5px; white-space:nowrap; font-weight:500; padding:6px 12px; border-radius:7px; border:1px solid var(--line-2); background:var(--surface); color:var(--ink); cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+  .btn:hover { background:var(--surface-2); }
+  .btn[aria-pressed="true"] { background:var(--ink); color:var(--surface); border-color:var(--ink); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Four boxes in space</h1>
+</header>
+
+  <div class="legend-grid">
+    <div class="midbar"><span class="tail"></span>d_mid plane &mdash; these two swap<span class="tail"></span></div>
+    <div class="boxrow">
+      <button class="box b-pre" id="b-pre">
+        <span class="nm"><i class="sw"></i>d_pre</span>
+        <span class="sz" id="z-pre">2</span>
+        <span class="rl">grows <span class="dir">into depth &#8600;</span></span>
+        <input type="range" id="s-pre" min="1" max="3" step="1" value="2" aria-label="d_pre size">
+      </button>
+      <button class="box b-rows is-mid" id="b-rows">
+        <span class="nm"><i class="sw"></i>d_left</span>
+        <span class="sz" id="z-rows">2</span>
+        <span class="rl">grows <span class="dir">downward &darr;</span></span>
+        <input type="range" id="s-rows" min="2" max="5" step="1" value="2" aria-label="d_left size">
+      </button>
+      <button class="box b-cols is-mid" id="b-cols">
+        <span class="nm"><i class="sw"></i>d_right</span>
+        <span class="sz" id="z-cols">3</span>
+        <span class="rl">grows <span class="dir">across &rarr;</span></span>
+        <input type="range" id="s-cols" min="2" max="5" step="1" value="3" aria-label="d_right size">
+      </button>
+      <button class="box b-post" id="b-post">
+        <span class="nm"><i class="sw"></i>d_post</span>
+        <span class="sz" id="z-post">2</span>
+        <span class="rl">grows <span class="dir">inside a cell &rarr;</span></span>
+        <input type="range" id="s-post" min="1" max="3" step="1" value="2" aria-label="d_post size">
+      </button>
+    </div>
+  </div>
+
+  <div class="trio">
+  <div class="spanel">
+    <div class="phead"><span class="pnum">1</span><span class="ptitle">tensor shape</span></div>
+    <div class="axis-row" id="axis-row"></div>
+    <div class="shape-line" id="shape-line"></div>
+  </div>
+
+  <div class="stage">
+    <div class="stage-top">
+      <div class="phead"><span class="pnum">2</span><span class="ptitle">4D block</span></div>
+      <div class="stage-bar">
+        <button class="btn" id="btn-iso" aria-pressed="false">Isolate one matrix</button>
+        <button class="btn" id="btn-flat" aria-pressed="false">2D d_mid only</button>
+        <button class="btn" id="btn-fuse" aria-pressed="false">Fuse cells</button>
+        <button class="btn" id="btn-plane" aria-pressed="true">d_mid plane</button>
+        <button class="btn" id="btn-swap" aria-pressed="false">Swap d_left &harr; d_right</button>
+        <button class="btn" id="btn-stay" aria-pressed="false">Mark stays</button>
+      </div>
+    </div>
+    <canvas id="cv"></canvas>
+    <div class="stage-hint">drag to rotate &middot; scroll to zoom &middot; click a cube</div>
+  </div>
+
+  <div class="mem">
+    <div class="phead"><span class="pnum">3</span><span class="ptitle">physical storage</span></div>
+    <span class="mem-sub" id="mem-sub">one slot per float</span>
+    <div class="mem-scroll"><div class="mem-grid" id="mem-grid"></div></div>
+  </div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>
+(function () {
+  var S = { pre: 2, rows: 2, cols: 3, post: 2 };
+  var swapped = false, markStay = false, showPlane = true, fused = false;
+  var flat = false, picked = null;
+  var isolate = false, selPre = 0, selPost = 0;
+  var NAME = { pre: "d_pre", rows: "d_left", cols: "d_right", post: "d_post" };
+
+  var HUE = {}, STAY, SCENE_BG, MID, INK, CUBE;
+  function readTokens() {
+    var cs = getComputedStyle(document.documentElement);
+    ["pre", "rows", "cols", "post"].forEach(function (k) {
+      HUE[k] = new THREE.Color(cs.getPropertyValue("--" + k).trim());
+    });
+    STAY = new THREE.Color(cs.getPropertyValue("--stay").trim());
+    MID = new THREE.Color(cs.getPropertyValue("--mid").trim());
+    INK = new THREE.Color(cs.getPropertyValue("--ink").trim());
+    CUBE = new THREE.Color(cs.getPropertyValue("--cube").trim());
+    SCENE_BG = new THREE.Color(cs.getPropertyValue("--scene").trim());
+  }
+
+  var el = function (id) { return document.getElementById(id); };
+  function gcd(a, b) { while (b) { var t = a % b; a = b; b = t; } return a; }
+
+  var SZ = 0.76, GAP_IN = 0.07, GAP_CELL = 0.44, GAP_ROW = 0.3, GAP_SLAB = 0.62;
+
+  var canvas = el("cv");
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(42, 2, 0.1, 200);
+  var root = new THREE.Group();
+  scene.add(root);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.52));
+  var key = new THREE.DirectionalLight(0xffffff, 0.86); key.position.set(5, 8, 7); scene.add(key);
+  var fill = new THREE.DirectionalLight(0xffffff, 0.34); fill.position.set(-6, -1, 3); scene.add(fill);
+  var rim = new THREE.DirectionalLight(0xffffff, 0.22); rim.position.set(0, -4, -7); scene.add(rim);
+
+  var geo = new THREE.BoxGeometry(SZ, SZ, SZ);
+  var cubes = [], cells = [], outlines = new THREE.Group();
+  var edgeMat = null, cubeEdgeGeo = null, cellEdgeGeo = null;
+  var deco = new THREE.Group(); root.add(deco); root.add(outlines);
+  var isoGroup = new THREE.Group(); root.add(isoGroup);
+
+  function layout(rows, cols) {
+    var cellW = S.post * SZ + (S.post - 1) * GAP_IN;
+    return {
+      cellW: cellW,
+      stepX: cellW + GAP_CELL,
+      stepY: SZ + GAP_ROW,
+      stepZ: SZ + GAP_SLAB,
+      w: cols * cellW + (cols - 1) * GAP_CELL,
+      h: rows * SZ + (rows - 1) * GAP_ROW,
+      d: S.pre * SZ + (S.pre - 1) * GAP_SLAB
+    };
+  }
+  function gridDims() { return swapped ? [S.cols, S.rows] : [S.rows, S.cols]; }
+
+  function posOf(pre, row, col, post, rows, cols) {
+    var L = layout(rows, cols);
+    return new THREE.Vector3(
+      col * L.stepX + post * (SZ + GAP_IN) - (L.w - SZ) / 2,
+      -(row * L.stepY) + (L.h - SZ) / 2,
+      -(pre * L.stepZ) + (L.d - SZ) / 2
+    );
+  }
+
+  // centre of the whole cell (all d_post floats of one d_left/d_right position)
+  function cellPos(pre, row, col, rows, cols) {
+    var p = posOf(pre, row, col, 0, rows, cols);
+    p.x += (S.post - 1) * (SZ + GAP_IN) / 2;
+    return p;
+  }
+
+  function tint(base, t) {
+    var c = base.clone(), hsl = {};
+    c.getHSL(hsl);
+    c.setHSL(hsl.h, hsl.s * (0.55 + 0.45 * (1 - t)), 0.34 + 0.34 * t);
+    return c;
+  }
+
+  // ---- labels as billboarded sprites ----
+  function makeLabel(text, color) {
+    var c = document.createElement("canvas");
+    c.width = 512; c.height = 128;
+    var g = c.getContext("2d");
+    g.font = "600 64px ui-monospace, Menlo, Consolas, monospace";
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = "#" + color.getHexString();
+    g.fillText(text, 256, 68);
+    var tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 4;
+    var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    s.scale.set(1.5, 0.375, 1);
+    s.renderOrder = 10;
+    return s;
+  }
+
+  // number stamped on a tile in the flat view — white with a dark halo, legible on any tint
+  function makeTileLabel(text) {
+    var c = document.createElement("canvas");
+    c.width = 256; c.height = 128;
+    var g = c.getContext("2d");
+    g.font = "700 84px ui-monospace, Menlo, Consolas, monospace";
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.lineWidth = 12; g.lineJoin = "round";
+    g.strokeStyle = "rgba(8,14,18,.72)"; g.strokeText(text, 128, 68);
+    g.fillStyle = "#ffffff"; g.fillText(text, 128, 68);
+    var tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 4;
+    var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    s.scale.set(SZ * 1.15, SZ * 0.58, 1);
+    s.renderOrder = 12;
+    return s;
+  }
+
+  function mkArrow(dir, origin, len, color) {
+    var g = new THREE.Group();
+    var mat = new THREE.MeshBasicMaterial({ color: color });
+    var headLen = Math.min(0.34, len * 0.3), shaftLen = Math.max(0.05, len - headLen);
+    var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, shaftLen, 10), mat);
+    shaft.position.y = shaftLen / 2;
+    var head = new THREE.Mesh(new THREE.ConeGeometry(0.14, headLen, 14), mat);
+    head.position.y = shaftLen + headLen / 2;
+    g.add(shaft); g.add(head);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    g.position.copy(origin);
+    return g;
+  }
+
+  function addArrow(key, dir, origin, len, labPos) {
+    var color = HUE[key];
+    deco.add(mkArrow(dir, origin, len, color));
+    var lab = makeLabel(NAME[key], color);
+    lab.position.copy(labPos ||
+      origin.clone().add(dir.clone().normalize().multiplyScalar(len + 0.52)));
+    deco.add(lab);
+  }
+
+  function buildDeco() {
+    while (deco.children.length) {
+      var o = deco.children[0];
+      deco.remove(o);
+      if (o.material && o.material.map) o.material.map.dispose();
+    }
+    var dims = gridDims(), R = dims[0], C = dims[1];
+    var L = layout(R, C);
+    var xL = -(L.w) / 2, yT = (L.h) / 2, yB = -(L.h) / 2, zF = (L.d) / 2;
+    var pad = 0.5;
+
+    // each label sits at its arrow's MIDPOINT, pushed outward, so no two collide
+    // at the tip the way d_left and d_pre used to
+    var zA = zF + pad * 0.5;
+    // d_right (or d_left when swapped) runs across the bottom-front edge, growing +x
+    addArrow(swapped ? "rows" : "cols",
+      new THREE.Vector3(1, 0, 0), new THREE.Vector3(xL, yB - pad, zA), L.w,
+      new THREE.Vector3(0, yB - pad - 0.44, zA));
+    // the vertical one grows downward, -y
+    addArrow(swapped ? "cols" : "rows",
+      new THREE.Vector3(0, -1, 0), new THREE.Vector3(xL - pad, yT, zA), L.h,
+      new THREE.Vector3(xL - pad - 0.66, 0, zA));
+    // d_pre grows into depth, -z
+    if (!flat) addArrow("pre",
+      new THREE.Vector3(0, 0, -1), new THREE.Vector3(xL - pad, yB - pad, zF), L.d,
+      new THREE.Vector3(xL - pad - 0.34, yB - pad - 0.44, zF - L.d / 2));
+    // d_post grows +x inside one cell
+    if (S.post > 1 && !flat) {
+      addArrow("post", new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(xL, yT + pad * 0.7, zA), L.cellW,
+        new THREE.Vector3(xL + L.cellW / 2, yT + pad * 0.7 + 0.44, zA));
+    }
+
+    // one cage per d_pre slab: same box, drawn again, which is what d_pre is
+    if (S.pre > 1 && !flat) {
+      var cageGeo = new THREE.EdgesGeometry(
+        new THREE.BoxGeometry(L.w + 0.34, L.h + 0.34, SZ + 0.34));
+      for (var q = 0; q < S.pre; q++) {
+        var zq = -(q * L.stepZ) + (L.d - SZ) / 2;
+        var cage = new THREE.LineSegments(cageGeo, new THREE.LineBasicMaterial({
+          color: HUE.pre, transparent: true, opacity: 0.42
+        }));
+        cage.position.set(0, 0, zq);
+        deco.add(cage);
+        var ct = makeLabel("copy " + q, HUE.pre);
+        ct.scale.set(1.15, 0.29, 1);
+        ct.position.set(L.w / 2 + 1.0, -L.h / 2 - 0.15, zq);
+        deco.add(ct);
+      }
+    }
+
+    // the d_mid plane, drawn at the front slab
+    if (showPlane) {
+      var pg = new THREE.PlaneGeometry(L.w + 0.5, L.h + 0.5);
+      var pm = new THREE.MeshBasicMaterial({
+        color: MID, transparent: true, opacity: 0.13,
+        side: THREE.DoubleSide, depthWrite: false
+      });
+      var plane = new THREE.Mesh(pg, pm);
+      plane.position.set(0, 0, zF - SZ / 2 + 0.005);
+      plane.renderOrder = -1;
+      deco.add(plane);
+      var edge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(pg),
+        new THREE.LineBasicMaterial({ color: MID, transparent: true, opacity: 0.6 }));
+      edge.position.copy(plane.position);
+      deco.add(edge);
+      var pl = makeLabel("d_mid", MID);
+      pl.position.set(L.w / 2 + 0.75, L.h / 2 + 0.55, zF - SZ / 2);
+      deco.add(pl);
+    }
+  }
+
+  function build() {
+    cubes.forEach(function (m) { root.remove(m); m.material.dispose(); });
+    cells.forEach(function (m) {
+      if (m.userData.tag) {
+        m.userData.tag.material.map.dispose();
+        m.userData.tag.material.dispose();
+      }
+      root.remove(m); m.material.dispose(); m.geometry.dispose();
+    });
+    while (outlines.children.length) {
+      var o0 = outlines.children[0];
+      outlines.remove(o0); o0.geometry.dispose(); o0.material.dispose();
+    }
+    cubes = []; cells = [];
+
+    var L = layout(S.rows, S.cols);
+    var cellGeo = new THREE.BoxGeometry(L.cellW, SZ, SZ);
+    if (edgeMat) edgeMat.dispose();
+    if (cubeEdgeGeo) cubeEdgeGeo.dispose();
+    if (cellEdgeGeo) cellEdgeGeo.dispose();
+    edgeMat = new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity: 0.3 });
+    cubeEdgeGeo = new THREE.EdgesGeometry(geo);
+    cellEdgeGeo = new THREE.EdgesGeometry(cellGeo);
+    var edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(L.cellW + 0.09, SZ + 0.09, SZ + 0.09));
+
+    for (var p = 0; p < S.pre; p++)
+      for (var r = 0; r < S.rows; r++)
+        for (var c = 0; c < S.cols; c++) {
+          for (var o = 0; o < S.post; o++) {
+            var m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff }));
+            m.userData = { pre: p, row: r, col: c, post: o, key: p+'_'+r+'_'+c+'_'+o };
+            m.add(new THREE.LineSegments(cubeEdgeGeo, edgeMat));
+            root.add(m); cubes.push(m);
+          }
+          var cm = new THREE.Mesh(cellGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }));
+          cm.userData = { pre: p, row: r, col: c, post: -1 };
+          var tag = makeTileLabel(String(r * S.cols + c));
+          tag.position.set(0, 0, SZ * 0.62);
+          tag.visible = false;
+          cm.add(tag);
+          cm.userData.tag = tag;
+          cm.add(new THREE.LineSegments(cellEdgeGeo, edgeMat));
+          root.add(cm); cells.push(cm);
+          if (S.post > 1) {
+            var ln = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({
+              color: HUE.post, transparent: true, opacity: 0.5
+            }));
+            ln.userData = { pre: p, row: r, col: c };
+            outlines.add(ln);
+          }
+        }
+    deco.visible = true;
+    buildDeco(); paint(); place(true); buildIso(); buildMem(); paintMem(); buildShape();
+  }
+
+  function addrOf(d, swap) {
+    var R = S.rows, C = S.cols, P = S.post;
+    return swap
+      ? ((d.pre * C + d.col) * R + d.row) * P + d.post
+      : ((d.pre * R + d.row) * C + d.col) * P + d.post;
+  }
+  function staysPut(d) { return addrOf(d, false) === addrOf(d, true); }
+
+  // One d_left x d_right matrix = fixed d_pre, fixed d_post. The tensor holds
+  // d_pre * d_post of them, interleaved through the same memory.
+  function inMatrix(d) { return d.pre === selPre && d.post === selPost; }
+
+  function buildIso() {
+    while (isoGroup.children.length) {
+      var o = isoGroup.children[0];
+      isoGroup.remove(o);
+      if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+      if (o.geometry) o.geometry.dispose();
+    }
+    isoGroup.visible = true;
+    if (!isolate || flat) return;
+    var mine = cubes.filter(function (m) { return inMatrix(m.userData); });
+    if (!mine.length) return;
+
+    var box = new THREE.Box3();
+    mine.forEach(function (m) { box.expandByPoint(m.position); });
+    var c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+
+    var pg = new THREE.PlaneGeometry(sz.x + SZ + 0.5, sz.y + SZ + 0.5);
+    var pl = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({
+      color: MID, transparent: true, opacity: 0.17, side: THREE.DoubleSide, depthWrite: false
+    }));
+    pl.position.set(c.x, c.y, c.z);
+    pl.renderOrder = -1;
+    isoGroup.add(pl);
+    var ed = new THREE.LineSegments(new THREE.EdgesGeometry(pg),
+      new THREE.LineBasicMaterial({ color: MID, transparent: true, opacity: 0.85 }));
+    ed.position.copy(pl.position);
+    isoGroup.add(ed);
+
+    // stamp each float with its cell number so the matrix is readable in place
+    mine.forEach(function (m) {
+      var d = m.userData;
+      var t = makeTileLabel(String(d.row * S.cols + d.col));
+      t.position.set(m.position.x, m.position.y, m.position.z + SZ * 0.72);
+      isoGroup.add(t);
+    });
+  }
+
+  function paint() {
+    function shade(m) {
+      var d = m.userData;
+      var col = CUBE.clone();
+      if (markStay && staysPut(d)) col = STAY.clone();
+      if (picked === m) col = new THREE.Color(0xffffff).lerp(col, 0.3);
+      m.material.color.copy(col);
+      var faded = markStay && !staysPut(d);
+      m.material.opacity = faded ? 0.3 : 1;
+      m.material.transparent = faded;
+    }
+    // flat view: one slab of fused tiles, each tinted by BOTH middle coordinates —
+    // hue slides d_left -> d_right across the grid, lightness steps down the rows
+    function shadeFlat(m) { shade(m); }
+
+    if (flat) {
+      cubes.forEach(function (m) { m.visible = false; });
+      cells.forEach(function (m) {
+        m.visible = m.userData.pre === 0;
+        m.userData.tag.visible = m.visible;
+        if (m.visible) shadeFlat(m);
+      });
+      outlines.visible = false;
+      return;
+    }
+    cubes.forEach(function (m) {
+      m.visible = !fused; shade(m);
+      if (isolate && !inMatrix(m.userData)) {
+        m.material.opacity = 0.07; m.material.transparent = true;
+      }
+    });
+    cells.forEach(function (m) {
+      m.visible = fused; m.userData.tag.visible = false; shade(m);
+      if (isolate && m.userData.pre !== selPre) {
+        m.material.opacity = 0.07; m.material.transparent = true;
+      }
+    });
+    outlines.visible = !fused && S.post > 1;
+  }
+
+  var anim = null;
+  function movers() { return cubes.concat(cells, outlines.children); }
+  function place(instant) {
+    var dims = gridDims(), R = dims[0], C = dims[1];
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var list = movers();
+    var targets = list.map(function (m) {
+      var d = m.userData;
+      var a = swapped ? d.col : d.row, b = swapped ? d.row : d.col;
+      return (d.post === undefined || d.post < 0)
+        ? cellPos(d.pre, a, b, R, C)
+        : posOf(d.pre, a, b, d.post, R, C);
+    });
+    if (instant || reduce) {
+      list.forEach(function (m, i) { m.position.copy(targets[i]); });
+      anim = null;
+      if (!deco.visible) { buildDeco(); deco.visible = true; buildIso(); }
+      return;
+    }
+    isoGroup.visible = false;
+    anim = { t: 0, list: list, from: list.map(function (m) { return m.position.clone(); }), to: targets };
+  }
+
+
+
+  // ------------------------------------------------------- panel 1: shape
+  // The axis order, and the stride each axis carries. Swapping the middle two
+  // rewrites their strides, which is precisely why panel 3 reshuffles.
+  var axisEls = {};
+
+  function buildShape() {
+    var row = el("axis-row");
+    row.innerHTML = "";
+
+    var br = document.createElement("div");
+    br.className = "midbr"; br.id = "midbr";
+    row.appendChild(br);
+    var tag = document.createElement("div");
+    tag.className = "midbr-tag"; tag.id = "midbr-tag"; tag.textContent = "d_mid";
+    row.appendChild(tag);
+
+    ["lb", "rb"].forEach(function (id, n) {
+      var b = document.createElement("div");
+      b.className = "brk"; b.id = id; b.textContent = n ? "]" : "[";
+      row.appendChild(b);
+    });
+    for (var c = 0; c < 3; c++) {
+      var cm = document.createElement("div");
+      cm.className = "comma"; cm.id = "cm" + c; cm.textContent = ",";
+      row.appendChild(cm);
+    }
+
+    axisEls = {};
+    ["pre", "rows", "cols", "post"].forEach(function (k) {
+      var e = document.createElement("div");
+      e.className = "axis a-" + k;
+      e.innerHTML = '<span class="an">' + NAME[k] + '</span>' +
+                    '<span class="av"></span><span class="as"></span>';
+      row.appendChild(e);
+      axisEls[k] = e;
+    });
+    layoutShape();
+  }
+
+  function layoutShape() {
+    var row = el("axis-row");
+    if (!row || !axisEls.pre) return;
+    var PAD = 17, GAPX = 9;
+    var W = row.clientWidth - PAD * 2;
+    if (W <= 0) return;
+    var w = (W - 3 * GAPX) / 4, step = w + GAPX;
+
+    // left to right, exactly how the shape tuple is written
+    var order = swapped ? ["pre", "cols", "rows", "post"] : ["pre", "rows", "cols", "post"];
+    var size = { pre: S.pre, rows: S.rows, cols: S.cols, post: S.post };
+
+    // row-major strides: innermost axis has stride 1, each step outward multiplies
+    var stride = {}, acc = 1;
+    for (var i = order.length - 1; i >= 0; i--) { stride[order[i]] = acc; acc *= size[order[i]]; }
+
+    order.forEach(function (k, idx) {
+      var e = axisEls[k];
+      e.style.width = w + "px";
+      e.style.transform = "translateX(" + (PAD + idx * step) + "px)";
+      e.querySelector(".av").textContent = size[k];
+      e.querySelector(".as").textContent = "stride " + stride[k];
+    });
+
+    var H = axisEls.pre.offsetHeight || 66;
+    el("lb").style.left = "2px";
+    el("lb").style.top = (H / 2) + "px";
+    el("rb").style.left = (PAD + 4 * step - GAPX + 5) + "px";
+    el("rb").style.top = (H / 2) + "px";
+    for (var c = 0; c < 3; c++) {
+      var cm = el("cm" + c);
+      cm.style.left = (PAD + (c + 1) * step - GAPX / 2 - 3) + "px";
+      cm.style.top = (H / 2) + "px";
+    }
+
+    var br = el("midbr"), tag = el("midbr-tag");
+    br.style.left = (PAD + step - 6) + "px";
+    br.style.width = (2 * w + GAPX + 12) + "px";
+    br.style.top = "-6px";
+    br.style.height = (H + 12) + "px";
+    tag.style.left = (PAD + step - 6) + "px";
+    tag.style.width = (2 * w + GAPX + 12) + "px";
+    tag.style.top = (H + 10) + "px";
+    row.style.height = (H + 28) + "px";
+
+    var sl = el("shape-line");
+    if (sl) {
+      sl.innerHTML =
+        '<span class="mid">a swap trades the middle two strides &mdash; nothing else changes</span><br>' +
+        NAME.rows + ' stride <b>' + stride.rows + '</b> &nbsp;&middot;&nbsp; ' +
+        NAME.cols + ' stride <b>' + stride.cols + '</b>';
+    }
+  }
+
+  // ---------------------------------------------------------------- memory
+  // The flat array the tensor actually occupies. Every slot is one float at
+  // its real address, so a change to the 4D block shows up here as movement.
+  var slots = {}, GAP = 1, CELLGAP = 6;
+
+  function buildMem() {
+    var g = el("mem-grid");
+    g.innerHTML = "";
+    slots = {};
+    cubes.forEach(function (m) {
+      var d = m.userData;
+      var e = document.createElement("div");
+      e.className = "slot";
+      e.title = "d_pre " + d.pre + " · d_left " + d.row + " · d_right " + d.col + " · d_post " + d.post;
+      e.addEventListener("click", function () {
+        picked = m;
+        if (isolate) { selPre = d.pre; selPost = d.post; buildIso(); }
+        paint(); paintMem();
+      });
+      g.appendChild(e);
+      slots[d.key] = e;
+    });
+    layoutMem();
+  }
+
+  function layoutMem() {
+    var g = el("mem-grid");
+    if (!g) return;
+    var wrap = g.parentNode;
+    var PADX = 12;                      // copy-band overhang + selection ring
+    var W = wrap.clientWidth - PADX;
+    if (W <= 0) return;
+    var n = S.pre * S.rows * S.cols * S.post;
+
+    // the array is one line, so draw it as one line. Shrink to fit; below the
+    // floor the strip scrolls rather than becoming unreadable.
+    var P = S.post, nCells = n / P;
+    // Gaps are tight inside a cell and wider between cells — d_post floats are
+    // ADJACENT and the layout has to say so — but they scale with the slots so
+    // the whole row always fits the panel. No scrollbar, ever.
+    var MAXSZ = 44, gap = GAP, cellgap = CELLGAP;
+    var size = W / n;
+    for (var it = 0; it < 4; it++) {
+      gap = Math.min(GAP, Math.max(0.4, size * 0.14));
+      cellgap = Math.min(CELLGAP, Math.max(1.2, size * 0.7));
+      size = (W - (n - nCells) * gap - (nCells - 1) * cellgap) / n;
+      if (size > MAXSZ) size = MAXSZ;
+    }
+    size = Math.max(1, size);
+    function xOf(a) { return a * (size + gap) + Math.floor(a / P) * (cellgap - gap); }
+    var total = xOf(n - 1) + size;
+    if (total > W) {                    // never let the row leave the panel
+      var k = W / total;
+      size *= k; gap *= k; cellgap *= k;
+      total = xOf(n - 1) + size;
+    }
+
+    Array.prototype.slice.call(g.querySelectorAll(".addr,.copyband,.copytag"))
+      .forEach(function (a) { a.remove(); });
+
+    // one band per d_pre copy — the same chunk of memory, laid down again
+    var TOP = S.pre > 1 ? 15 : 0, chunk = n / S.pre;
+    for (var q = 0; q < S.pre && S.pre > 1; q++) {
+      var x0 = xOf(q * chunk), x1 = xOf((q + 1) * chunk - 1) + size;
+      var band = document.createElement("div");
+      band.className = "copyband";
+      band.style.left = (x0 - 3) + "px";
+      band.style.width = (x1 - x0 + 6) + "px";
+      band.style.top = (TOP - 4) + "px";
+      band.style.height = (size + 8) + "px";
+      g.appendChild(band);
+      var ct = document.createElement("div");
+      ct.className = "copytag";
+      ct.textContent = "copy " + q;
+      ct.style.left = (x0 - 2) + "px";
+      ct.style.top = "0px";
+      g.appendChild(ct);
+    }
+    var every = size >= 26 ? 1 : size >= 15 ? 4 : 8;
+    for (var i = 0; i < n; i += every) {
+      var lab = document.createElement("div");
+      lab.className = "addr";
+      lab.textContent = i;
+      lab.style.left = xOf(i) + "px";
+      lab.style.width = size + "px";
+      lab.style.textAlign = "center";
+      lab.style.top = (TOP + size + 5) + "px";
+      g.appendChild(lab);
+    }
+
+    cubes.forEach(function (m) {
+      var d = m.userData, e = slots[d.key];
+      if (!e) return;
+      var a = addrOf(d, swapped);
+      e.style.width = size + "px";
+      e.style.height = size + "px";
+      e.style.transform = "translate(" + xOf(a) + "px," + TOP + "px)";
+    });
+    g.style.width = total + "px";
+    g.style.height = (TOP + size + 17) + "px";
+    el("mem-sub").textContent = n + " floats, address 0 to " + (n - 1) +
+      (P > 1 ? " · tight groups of " + P + " are one cell, always adjacent" : "") +
+      (S.pre > 1 ? " · " + S.pre + " copies of the same block" : "");
+  }
+
+  function paintMem() {
+    cubes.forEach(function (m) {
+      var d = m.userData, e = slots[d.key];
+      if (!e) return;
+      var stay = staysPut(d), iso = isolate && inMatrix(d);
+      // same cell as an isolated float, different d_post offset
+      var sib = isolate && !iso && d.pre === selPre;
+      e.className = "slot" +
+        (markStay && stay ? " stay" : "") +
+        (iso ? " iso" : "") +
+        (sib ? " sib" : "") +
+        (markStay && !stay ? " dim" : "") +
+        (isolate && !iso && !sib ? " dim" : "") +
+        (picked === m ? " sel" : "");
+    });
+  }
+
+  // ---- interaction ----
+  var rotX = -0.52, rotY = 0.92, dragging = false, moved = false, lx = 0, ly = 0, zoom = 1;
+  var snapTo = null, camDist = null;
+  canvas.addEventListener("pointerdown", function (e) {
+    dragging = true; moved = false; snapTo = null; lx = e.clientX; ly = e.clientY;
+    canvas.classList.add("grabbing"); canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - lx, dy = e.clientY - ly;
+    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+    rotY += dx * 0.008; rotX += dy * 0.008;
+    rotX = Math.max(-1.35, Math.min(1.35, rotX));
+    lx = e.clientX; ly = e.clientY;
+  });
+  function endDrag() { dragging = false; canvas.classList.remove("grabbing"); }
+  canvas.addEventListener("pointerup", function (e) { endDrag(); if (!moved) pick(e); });
+  canvas.addEventListener("pointercancel", endDrag);
+  canvas.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    zoom = Math.max(0.45, Math.min(2.4, zoom * (e.deltaY > 0 ? 1.08 : 0.93)));
+  }, { passive: false });
+
+  var ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function pick(e) {
+    var r = canvas.getBoundingClientRect();
+    ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    ray.setFromCamera(ndc, camera);
+    var pool = ((fused || flat) ? cells : cubes).filter(function (m) { return m.visible; });
+    var hit = ray.intersectObjects(pool, false)[0];
+    picked = hit ? hit.object : null;
+    if (isolate && picked && picked.userData.post >= 0) {
+      selPre = picked.userData.pre;
+      selPost = picked.userData.post;
+      buildIso();
+    }
+    showPick(); paint(); readout(); paintMem();
+  }
+
+  function showPick() {
+    if (!el("i-pre")) return;
+    if (!picked) {
+      ["pre", "rows", "cols", "post"].forEach(function (k) { el("i-" + k).innerHTML = "&mdash;"; });
+      el("i-addr").textContent = "click a cube";
+      return;
+    }
+    var d = picked.userData, isCell = d.post === undefined || d.post < 0;
+    el("i-pre").textContent = d.pre;
+    el("i-rows").textContent = d.row;
+    el("i-cols").textContent = d.col;
+    el("i-post").innerHTML = isCell ? 'all&nbsp;' + S.post : d.post;
+    var base = { pre: d.pre, row: d.row, col: d.col, post: 0 };
+    var a = addrOf(isCell ? base : d, false), b = addrOf(isCell ? base : d, true);
+    var span = isCell && S.post > 1 ? '&ndash;' + (a + S.post - 1) : '';
+    var spanB = isCell && S.post > 1 ? '&ndash;' + (b + S.post - 1) : '';
+    el("i-addr").innerHTML = a === b
+      ? '<b>' + a + span + '</b> &rarr; <b>' + b + spanB + '</b> <span class="stay">&mdash; stays put</span>'
+      : '<b>' + a + span + '</b> &rarr; <b>' + b + spanB + '</b> &nbsp;moves';
+  }
+
+  function readout() {
+    if (!el("readout")) return;
+    var R = S.rows, C = S.cols, cells = R * C;
+    var fixed = gcd(R - 1, C - 1) + 1;
+    var total = S.pre * cells * S.post;
+    var skipped = S.pre * fixed * S.post;
+    el("readout").innerHTML =
+      '<span>floats <b class="mono">' + total + '</b></span>' +
+      '<span>d_mid plane <b class="mono">' + R + ' &times; ' + C + '</b> = <b class="mono">' + cells + '</b> cells</span>' +
+      '<span>free cells <b class="mono">' + fixed + '</b></span>' +
+      '<span>floats that stay <b class="mono stay">' + skipped + '</b></span>' +
+      '<span>share <b class="mono stay">' + (skipped / total * 100).toFixed(1) + '%</b></span>' +
+      (isolate
+        ? '<span style="color:var(--mid)">isolated matrix <b class="mono" style="color:var(--mid)">' +
+          'd_pre=' + selPre + ', d_post=' + selPost + '</b> &mdash; one of <b class="mono" ' +
+          'style="color:var(--mid)">' + (S.pre * S.post) + '</b> in this tensor</span>'
+        : '');
+  }
+
+  ["pre", "rows", "cols", "post"].forEach(function (k) {
+    el("s-" + k).addEventListener("input", function (e) {
+      e.stopPropagation();
+      S[k] = parseInt(e.target.value, 10);
+      el("z-" + k).textContent = S[k];
+      picked = null; showPick(); build(); readout();
+    });
+    el("s-" + k).addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+
+  });
+
+  el("btn-swap").addEventListener("click", function () {
+    swapped = !swapped;
+    this.setAttribute("aria-pressed", String(swapped));
+    place(false); showPick(); layoutMem(); paintMem(); layoutShape();
+    deco.visible = false;
+  });
+  el("btn-stay").addEventListener("click", function () {
+    markStay = !markStay;
+    this.setAttribute("aria-pressed", String(markStay));
+    paint(); paintMem();
+  });
+  el("btn-iso").addEventListener("click", function () {
+    isolate = !isolate;
+    this.setAttribute("aria-pressed", String(isolate));
+    if (isolate && picked && picked.userData.post >= 0) {
+      selPre = picked.userData.pre; selPost = picked.userData.post;
+    }
+    buildIso(); paint(); readout(); paintMem();
+  });
+  el("btn-flat").addEventListener("click", function () {
+    flat = !flat;
+    this.setAttribute("aria-pressed", String(flat));
+    el("btn-fuse").disabled = flat;
+    el("btn-fuse").style.opacity = flat ? ".45" : "";
+    snapTo = flat ? { x: 0, y: 0 } : { x: -0.52, y: 0.92 };
+    picked = null; showPick(); buildDeco(); buildIso(); paint();
+  });
+  el("btn-fuse").addEventListener("click", function () {
+    fused = !fused;
+    this.setAttribute("aria-pressed", String(fused));
+    picked = null; showPick(); paint();
+  });
+  el("btn-plane").addEventListener("click", function () {
+    showPlane = !showPlane;
+    this.setAttribute("aria-pressed", String(showPlane));
+    buildDeco();
+  });
+
+  function resize() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    var dpr = renderer.getPixelRatio();
+    if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+    }
+  }
+  function tick() {
+    resize();
+    if (anim) {
+      anim.t = Math.min(1, anim.t + 0.035);
+      var e = anim.t < .5 ? 4 * Math.pow(anim.t, 3) : 1 - Math.pow(-2 * anim.t + 2, 3) / 2;
+      anim.list.forEach(function (m, i) { m.position.lerpVectors(anim.from[i], anim.to[i], e); });
+      if (anim.t >= 1) { anim = null; buildDeco(); deco.visible = true; buildIso(); }
+    }
+    if (snapTo) {
+      rotX += (snapTo.x - rotX) * 0.15;
+      rotY += (snapTo.y - rotY) * 0.15;
+      if (Math.abs(snapTo.x - rotX) < 1e-3 && Math.abs(snapTo.y - rotY) < 1e-3) {
+        rotX = snapTo.x; rotY = snapTo.y; snapTo = null;
+      }
+    }
+    root.rotation.x = rotX; root.rotation.y = rotY;
+    var dims = gridDims(), L = layout(dims[0], dims[1]);
+    var dz = flat ? 0 : L.d;
+    // bounding sphere is rotation-invariant, so the fit holds at every angle
+    var radius = 0.5 * Math.sqrt(L.w * L.w + L.h * L.h + dz * dz) + (flat ? 0.9 : 1.35);
+    var vFov = camera.fov * Math.PI / 180;
+    var hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+    var dist = Math.max(radius / Math.sin(vFov / 2), radius / Math.sin(hFov / 2)) * zoom;
+    if (camDist === null) camDist = dist;
+    camDist += (dist - camDist) * 0.12;
+    camera.position.set(0, 0, camDist);
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+
+  function themeSync() { readTokens(); scene.background = SCENE_BG; build(); }
+  readTokens();
+  scene.background = SCENE_BG;
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", themeSync);
+    else if (mq.addListener) mq.addListener(themeSync);
+  }
+
+  build(); readout(); tick();
+  window.addEventListener("resize", function () { layoutMem(); layoutShape(); });
+  requestAnimationFrame(function () { layoutMem(); paintMem(); layoutShape(); });
+})();
+</script>
+</body>
+</html>

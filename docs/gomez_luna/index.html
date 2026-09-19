@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gomez-Luna: In-Place Matrix Transposition on GPUs</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: #f8fafc; color: #1e293b;
+  font-family: 'Courier New', monospace;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+header {
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+  padding: 10px 24px 0 24px; flex: 0 0 auto;
+}
+h1 { font-size: 0.95rem; font-weight: bold; color: #1e293b; }
+h1 .sub { font-weight: normal; color: #94a3b8; margin-left: 10px; font-size: 0.82rem; }
+
+#tabs { display: flex; gap: 2px; margin-top: 9px; }
+.tab {
+  padding: 7px 15px 8px 15px; border: none; background: transparent;
+  font-family: inherit; font-size: 0.8rem; color: #64748b; cursor: pointer;
+  border-bottom: 3px solid transparent; transition: color .1s, border-color .1s;
+}
+.tab:hover { color: #1e293b; }
+.tab.on { color: #1d4ed8; border-bottom-color: #1d4ed8; font-weight: bold; }
+
+#stage { display: block; width: 100%; flex: 1 1 auto; min-height: 0; }
+
+#caption {
+  flex: 0 0 auto; background: #fff; border-top: 1px solid #e2e8f0;
+  padding: 12px 24px; font-size: 0.84rem; line-height: 1.55; color: #334155;
+  height: 92px; overflow-y: auto;
+}
+#caption b { color: #0f172a; }
+#caption code {
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px;
+  padding: 0 4px; font-family: inherit; font-size: 0.95em; color: #0f172a;
+}
+#caption .hl-bs { color: #0d9488; font-weight: bold; }
+#caption .hl-pt { color: #c2571a; font-weight: bold; }
+#caption .hl-pad { color: #e11d48; font-weight: bold; }
+
+#bar {
+  flex: 0 0 auto; height: 52px; background: #fff; border-top: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 12px; padding: 0 24px;
+}
+.btn {
+  padding: 8px 20px; border-radius: 7px; cursor: pointer;
+  font-family: inherit; font-size: 0.85rem; font-weight: bold;
+  border: none; transition: background .1s;
+}
+.btn-go  { background: #1d4ed8; color: #fff; }
+.btn-go:hover:not(:disabled) { background: #1e40af; }
+.btn-go:disabled { background: #cbd5e1; cursor: default; }
+.btn-rst { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.btn-rst:hover:not(:disabled) { background: #e2e8f0; }
+.btn-rst:disabled { color: #cbd5e1; cursor: default; }
+.btn-alt { background: #fff7ed; color: #c2571a; border: 1px solid #fed7aa; }
+.btn-alt:hover { background: #ffedd5; }
+.btn-alt[hidden] { display: none; }
+#dots { display: flex; gap: 5px; margin-left: 6px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #e2e8f0; }
+.dot.on { background: #1d4ed8; }
+.dot.past { background: #94a3b8; }
+#where { margin-left: auto; font-size: 0.78rem; color: #94a3b8; }
+
+.t      { font-size: 13px; fill: #1e293b; }
+.t-sm   { font-size: 11px; fill: #64748b; }
+.t-xs   { font-size: 9.5px; fill: #94a3b8; }
+.t-hd   { font-size: 12px; fill: #94a3b8; letter-spacing: .06em; }
+.t-c    { text-anchor: middle; dominant-baseline: middle; }
+.t-b    { font-weight: bold; }
+.t-r    { text-anchor: end; }
+.mono-w { fill: #fff; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>In-Place Matrix Transposition on GPUs
+    <span class="sub">Gomez-Luna, Sung, Chang, Gonzalez-Linares, Guil, Hwu &mdash; IEEE TPDS 27(3), 2016</span>
+  </h1>
+  <nav id="tabs"></nav>
+</header>
+
+<svg id="stage" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#c2571a"/></marker>
+    <marker id="arrB" markerWidth="8" markerHeight="6" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#1d4ed8"/></marker>
+    <marker id="arrG" markerWidth="8" markerHeight="6" refX="7.5" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#94a3b8"/></marker>
+  </defs>
+  <g id="root"></g>
+</svg>
+
+<div id="caption"></div>
+
+<div id="bar">
+  <button class="btn btn-rst" id="btnPrev">&#9664; Back</button>
+  <button class="btn btn-go"  id="btnNext">Next &#9654;</button>
+  <button class="btn btn-rst" id="btnReset">Reset</button>
+  <button class="btn btn-alt" id="btnAlt" hidden>Re-run with a skewed schedule</button>
+  <div id="dots"></div>
+  <span id="where"></span>
+</div>
+
+<script>
+'use strict';
+
+/* ===================================================================
+   Everything numeric on this page comes out of the repo, not out of
+   the air:
+     - the super-element window and LM_size:  two_dims/gomezluna/decomposition.py
+     - the stage sequences 2.1 / 2.2 / 3.1 / 3.2:      the same file
+     - k' = k*P mod (PQ-1) and the BS kernel:  two_dims/gomezluna/kernel.cu
+     - the PTTWAC claim protocol:              the same file, pttwac_kernel
+     - the measured numbers in the last scene: the raw_data jsonl sweeps
+   The worked example is what decomposition.plan(12, 10) returns once the
+   on-chip budget is scaled down so a plan is small enough to draw. The
+   page re-derives the whole thing at load time and asserts it really is a
+   transpose -- see the console.
+   =================================================================== */
+
+// --- the paper's real constants -------------------------------------
+const REAL = {
+  MIN: 24,            // their "Min"
+  LM: 25344,          // LM_SIZE, in floats
+  MAX: 159,           // int(sqrt(25344))
+  // decomposition.plan(6203, 6607) -- their own Section 6.2 example
+  ex: { M: 6203, N: 6607, Mpad: 6204, Npad: 6608, m: 33, n: 28,
+        Mp: 188, Np: 236, seq: '3.2' },
+};
+
+// --- the same algorithm, window scaled down so it fits on screen ----
+const TOY = {
+  MIN: 2, LM: 16, MAX: 4,
+  M: 12, N: 10, m: 2, n: 2, Mp: 6, Np: 5, seq: '3.2',
+  // decomposition.plan(12, 10)["stages"], as (batch, P, Q, W, mode)
+  stages: [
+    { batch: 6,  P: 2, Q: 5,  W: 2, mode: 'pttwac' },
+    { batch: 30, P: 2, Q: 2,  W: 1, mode: 'bs'     },
+    { batch: 1,  P: 6, Q: 10, W: 2, mode: 'pttwac' },
+  ],
+};
+
+// --- measured, from raw_data/ ---------------------------------------
+const MEASURED = {
+  rows: 102,                    // rows where both methods reported
+  boxWins: 100,
+  medianRatio: 6.05,            // gl_apply_ms / box_ms, median
+  worst: { shape: '[2,2,2,2,16777216]', perm: '[4,3,0,1,2]',
+           tensorMB: 1073.7, glAuxMB: 268.4, glMs: 914.1, boxMs: 145.6,
+           contMs: 7.0 },
+  boxAuxLo: 8, boxAuxHi: 10880, // bytes
+};
+
+// --- colours ---------------------------------------------------------
+const C = {
+  ink: '#1e293b', mute: '#64748b', faint: '#94a3b8',
+  line: '#cbd5e1', hair: '#e2e8f0', panel: '#fff',
+  blue: '#1d4ed8', blueF: '#dbeafe',
+  teal: '#0d9488', tealF: '#ccfbf1',
+  amber: '#b45309', amberF: '#fef3c7',
+  rose: '#e11d48', roseF: '#ffe4e6',
+  orange: '#c2571a', orangeF: '#ffedd5',
+  violet: '#7c3aed', violetF: '#ede9fe',
+  slateF: '#f1f5f9', bgSolid: '#f8fafc',
+};
+// one colour per cycle, reused across scenes
+const CYC = [
+  { s: '#1d4ed8', f: '#dbeafe' },
+  { s: '#c2571a', f: '#ffedd5' },
+  { s: '#0d9488', f: '#ccfbf1' },
+  { s: '#7c3aed', f: '#ede9fe' },
+  { s: '#be185d', f: '#fce7f3' },
+];
+const FIXED = { s: '#94a3b8', f: '#f1f5f9' };
+
+// ====================================================================
+//  tiny svg helpers
+// ====================================================================
+const NS = 'http://www.w3.org/2000/svg';
+let g = null;                                   // current draw target
+
+function E(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in (attrs || {})) if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  g.appendChild(e);
+  return e;
+}
+function box(x, y, w, h, o) {
+  o = o || {};
+  return E('rect', { x, y, width: w, height: h, rx: o.rx == null ? 3 : o.rx,
+    fill: o.fill || C.panel, stroke: o.stroke || C.line,
+    'stroke-width': o.sw || 1, opacity: o.op, 'stroke-dasharray': o.dash });
+}
+function T(x, y, s, o) {
+  o = o || {};
+  const cls = ['t' + (o.size ? '-' + o.size : ''), o.c ? 't-c' : '',
+               o.b ? 't-b' : '', o.r ? 't-r' : ''].filter(Boolean).join(' ');
+  return E('text', { x, y, class: cls, fill: o.fill }, s);
+}
+function line(x1, y1, x2, y2, o) {
+  o = o || {};
+  return E('line', { x1, y1, x2, y2, stroke: o.stroke || C.line,
+    'stroke-width': o.sw || 1, 'stroke-dasharray': o.dash,
+    'marker-end': o.arrow, opacity: o.op });
+}
+function path(d, o) {
+  o = o || {};
+  return E('path', { d, fill: o.fill || 'none', stroke: o.stroke || C.line,
+    'stroke-width': o.sw || 1, 'marker-end': o.arrow,
+    'stroke-dasharray': o.dash, opacity: o.op });
+}
+// a labelled cell: rect + centred text
+function cell(x, y, w, h, label, o) {
+  o = o || {};
+  box(x, y, w, h, o);
+  if (label != null && label !== '')
+    T(x + w / 2, y + h / 2 + 0.5, label,
+      { c: 1, size: o.tsize, fill: o.tfill || C.ink, b: o.tb });
+}
+function heading(x, y, s) { T(x, y, s, { size: 'hd' }); }
+function panel(x, y, w, h, title) {
+  box(x, y, w, h, { fill: C.panel, stroke: C.hair, rx: 6 });
+  if (title) heading(x + 12, y + 19, title);
+}
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+// ====================================================================
+//  the algorithm itself, re-derived here
+// ====================================================================
+
+// kernel.cu: k' = k*P mod L for k < L, and L -> L. L = P*Q - 1.
+function dest(k, P, Q) { const L = P * Q - 1; return k === L ? L : (k * P) % L; }
+
+function cyclesOf(P, Q) {
+  const PQ = P * Q, seen = new Array(PQ).fill(false), out = [];
+  for (let s = 0; s < PQ; s++) {
+    if (seen[s]) continue;
+    const c = []; let k = s;
+    while (!seen[k]) { seen[k] = true; c.push(k); k = dest(k, P, Q); }
+    out.push(c);
+  }
+  return out;
+}
+
+// one stage: view the flat array as [batch, P, Q, W], swap P and Q.
+function applyStage(flat, st) {
+  const { batch: b, P, Q, W } = st, out = new Array(flat.length);
+  for (let i = 0; i < b; i++)
+    for (let p = 0; p < P; p++)
+      for (let q = 0; q < Q; q++)
+        for (let w = 0; w < W; w++)
+          out[((i * Q + q) * P + p) * W + w] = flat[((i * P + p) * Q + q) * W + w];
+  return out;
+}
+
+// The page checks its own worked example on load. `layouts[s][k]` is the
+// ORIGINAL linear index living in memory slot k after s stages.
+const LAYOUTS = (() => {
+  const n = TOY.M * TOY.N;
+  let cur = Array.from({ length: n }, (_, i) => i);
+  const out = [cur];
+  for (const st of TOY.stages) { cur = applyStage(cur, st); out.push(cur); }
+  return out;
+})();
+(() => {
+  const { M, N } = TOY, fin = LAYOUTS[LAYOUTS.length - 1];
+  let ok = true;
+  // final slot (j, i) of an N x M matrix must hold original (i, j) = i*N + j
+  for (let j = 0; j < N; j++) for (let i = 0; i < M; i++)
+    if (fin[j * M + i] !== i * N + j) ok = false;
+  console.assert(ok, 'the three stages do not compose to a transpose -- ' +
+                     'this page is out of step with two_dims/gomezluna/decomposition.py');
+  if (ok) console.log('gomez-luna page: stage sequence ' + TOY.seq +
+                      ' verified as a ' + M + 'x' + N + ' transpose');
+})();
+
+// ====================================================================
+//  SCENE 1 -- why an in-place transpose is hard
+// ====================================================================
+const S1 = { P: 3, Q: 5 };
+S1.L = S1.P * S1.Q - 1;
+S1.walk = [1, 3, 9, 13, 11, 5];          // the cycle we animate, in order
+S1.cycles = cyclesOf(S1.P, S1.Q);
+
+function s1_cycleIndex(k) {
+  for (let i = 0; i < S1.cycles.length; i++) if (S1.cycles[i].includes(k)) return i;
+  return -1;
+}
+function s1_colour(k, lit) {
+  const c = S1.cycles[s1_cycleIndex(k)];
+  if (!lit) return { fill: C.panel, stroke: C.line };
+  if (c.length === 1) return { fill: FIXED.f, stroke: FIXED.s };
+  const nt = S1.cycles.filter(x => x.length > 1);
+  const i = nt.findIndex(x => x === c);
+  return { fill: CYC[i % CYC.length].f, stroke: CYC[i % CYC.length].s };
+}
+
+// memory strip geometry
+const S1G = { x: 372, y: 292, w: 52, h: 44 };
+const s1x = k => S1G.x + k * S1G.w;
+
+function s1_strip(state, lit) {
+  const { x, y, w, h } = S1G;
+  T(x, y + h + 40, 'MEMORY — ONE ARRAY, NOWHERE ELSE TO PUT ANYTHING', { size: 'hd' });
+  for (let k = 0; k <= S1.L; k++) {
+    const col = s1_colour(k, lit);
+    const v = state ? state[k] : k;
+    cell(s1x(k), y, w - 6, h, v == null ? '' : String(v),
+         { fill: col.fill, stroke: col.stroke, tb: 1 });
+    T(s1x(k) + (w - 6) / 2, y + h + 15, String(k), { c: 1, size: 'xs' });
+  }
+  T(x - 12, y + h + 15, 'slot', { r: 1, size: 'xs' });
+}
+
+function s1_matrix(x, y, rows, cols, cw, get, title) {
+  T(x, y - 12, title, { size: 'sm' });
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
+    cell(x + c * cw, y + r * cw, cw - 3, cw - 3, String(get(r, c)),
+         { fill: C.panel, stroke: C.line, tsize: 'sm' });
+}
+
+const SCENE1 = {
+  id: 'why', tab: '1 . Why it is hard',
+  steps: [
+    { cap: '<b>Out of place is the easy case.</b> Read from A, write to B, every ' +
+           'element straight to its home. Perfectly parallel. The price is B itself ' +
+           '&mdash; a second buffer the same size as the first. That is the cost the ' +
+           'whole line of work exists to avoid.' },
+    { cap: 'In place there is <b>only one array</b>. A non-square transpose is then a ' +
+           'permutation of linear positions: slot <code>k</code> must end up at ' +
+           '<code>k&middot;P mod (PQ&minus;1)</code>, with the two end slots staying put. ' +
+           'Here <code>P=3, Q=5</code>, so <code>L=14</code> and <code>k&rsquo; = 3k mod 14</code>. ' +
+           'That formula is Equation (1) of the paper, and it is literally the line in ' +
+           '<code>bs_kernel</code>.' },
+    { cap: '<b>It is not a set of swaps.</b> Slot 1 goes to slot 3 &mdash; but slot 3 does ' +
+           'not come back to 1, it goes to 9. So you cannot exchange pairs. Writing into ' +
+           'slot 3 destroys what was there, so you have to be holding it when you do.' },
+    { cap: 'Pick up slot 1. Now you are holding a value and slot 1 is free.' },
+    { cap: 'Put it where it belongs, in slot 3, and catch what was there. You are still ' +
+           'holding exactly one value. That is all the scratch space this needs: ' +
+           '<b>one register</b>.' },
+    { cap: 'Keep going. 3 belongs in 9.' },
+    { cap: '9 belongs in 13.' },
+    { cap: '13 belongs in 11.' },
+    { cap: '11 belongs in 5.' },
+    { cap: 'And 5 belongs back in slot 1, which has been empty since we started. The loop ' +
+           'closes. That loop is a <b>cycle</b>, and walking it is cycle following.' },
+    { cap: 'The permutation is nothing but cycles. Fifteen slots here make five of them: ' +
+           'three fixed points that never move, and two of length six. Each cycle is ' +
+           'strictly sequential &mdash; you cannot start step two before step one &mdash; ' +
+           'so <b>the number of cycles is your parallelism</b>.' },
+    { cap: 'And that is the whole problem. A 4096&times;3000 matrix is 12,288,000 elements ' +
+           'and <b>exactly 4 cycles</b>. Four. On a GPU with thousands of cores. ' +
+           'Gomez-Luna\'s answer is not a cleverer cycle walk &mdash; it is to reshape the ' +
+           'problem so that most of the work never touches a global cycle at all.' },
+  ],
+  draw(i, p) {
+    if (i === 0) {
+      panel(60, 60, 1080, 400);
+      heading(80, 92, 'OUT OF PLACE');
+      s1_matrix(120, 150, 3, 5, 52, (r, c) => r * 5 + c, 'A  (3 x 5)');
+      const arrX = 460;
+      path(`M ${arrX} 216 L ${arrX + 90} 216`, { stroke: C.blue, sw: 2, arrow: 'url(#arrB)' });
+      T(arrX + 45, 200, 'copy', { c: 1, size: 'sm', fill: C.blue });
+      s1_matrix(600, 150, 5, 3, 52, (r, c) => c * 5 + r, 'B  (5 x 3)  — a whole new allocation');
+      box(600, 150, 3 * 52 - 3, 5 * 52 - 3, { fill: C.roseF, stroke: C.rose, op: .35, sw: 2 });
+      T(840, 200, 'second buffer, same size as A', { size: 'sm', fill: C.rose });
+      T(840, 222, 'a 1 GB tensor needs another 1 GB', { size: 'sm', fill: C.rose });
+      T(840, 258, 'PyTorch .contiguous() is this,', { size: 'sm' });
+      T(840, 278, 'and it is very fast.', { size: 'sm' });
+      T(840, 306, 'Every in-place method on this', { size: 'sm', fill: C.mute });
+      T(840, 324, 'page is trading time for that', { size: 'sm', fill: C.mute });
+      T(840, 342, 'pink rectangle.', { size: 'sm', fill: C.mute });
+      return;
+    }
+
+    if (i === 11) { SCENE1.ceiling(p); return; }
+
+    // --- the memory strip is the stage from here on ---
+    const lit = i >= 10;
+    let state = null, hand = null, handAt = null, handTo = null;
+
+    if (i >= 3 && i <= 9) {
+      // replay the walk up to this beat
+      state = Array.from({ length: 15 }, (_, k) => k);
+      const beat = i - 3;                    // 0 = pick up, 1..6 = writes
+      hand = state[S1.walk[0]]; state[S1.walk[0]] = null; handAt = S1.walk[0];
+      for (let b = 1; b <= beat; b++) {
+        const to = S1.walk[b % S1.walk.length];
+        const caught = state[to];
+        state[to] = hand; hand = caught; handAt = to;
+      }
+      handTo = beat < 6 ? S1.walk[(beat + 1) % S1.walk.length] : null;
+      if (beat === 6) hand = null;
+    }
+
+    T(60, 84, i === 1 || i === 2 ? 'the 3 x 5 matrix, and the one array it lives in'
+                                 : 'walking one cycle', { size: 'sm', fill: C.faint });
+
+    // the little matrix, for orientation -- kept clear of the strip and the
+    // flying chip by sitting entirely to the left of S1G.x.
+    s1_matrix(90, 190, 3, 5, 44, (r, c) => r * 5 + c, 'logical 3 x 5');
+    T(90, 342, 'row-major:  slot k = row × 5 + col', { size: 'xs' });
+
+    // destination map, drawn as arcs over the strip
+    if (i === 1 || i === 2) {
+      const show = i === 1 ? [0, 1, 2, 3, 6, 7, 14] : [1, 3, 9];
+      for (const k of show) {
+        const d = dest(k, S1.P, S1.Q);
+        const x1 = s1x(k) + (S1G.w - 6) / 2, x2 = s1x(d) + (S1G.w - 6) / 2;
+        const r = Math.abs(x2 - x1) / 2;
+        const lit2 = i === 2 && (k === 1 || k === 3);
+        if (k === d) {
+          T(x1, S1G.y - 14, 'stays', { c: 1, size: 'xs', fill: FIXED.s });
+        } else {
+          path(`M ${x1} ${S1G.y - 6} A ${r} ${Math.min(r * .75, 90)} 0 0 ${x2 > x1 ? 1 : 0} ${x2} ${S1G.y - 6}`,
+               { stroke: lit2 ? C.orange : (i === 2 ? C.hair : C.faint),
+                 sw: lit2 ? 2.2 : 1, arrow: lit2 ? 'url(#arr)' : 'url(#arrG)' });
+        }
+      }
+      T(770, 120, 'k’ = 3k mod 14    (and 14 → 14)',
+        { c: 1, b: 1, fill: C.orange });
+      if (i === 2) {
+        T(770, 148, '1 → 3,  but  3 → 9.  Not a swap.',
+          { c: 1, size: 'sm', fill: C.orange });
+      }
+    }
+
+    s1_strip(state, lit);
+
+    // the value in hand, flying
+    if (i >= 3 && i <= 9 && hand != null) {
+      const cw = S1G.w - 6, hy = S1G.y - 74;
+      // where it is coming from / going to
+      const fromK = i === 3 ? S1.walk[0] : S1.walk[(i - 4) % S1.walk.length];
+      const toK = handAt;
+      const x = lerp(s1x(fromK), s1x(toK), ease(p));
+      const lift = Math.sin(Math.PI * ease(p)) * 16;
+      cell(x, hy - lift, cw, 40, String(hand),
+           { fill: C.amberF, stroke: C.amber, sw: 2, tb: 1, tfill: C.amber });
+      T(x + cw / 2, hy - lift - 14, 'in hand', { c: 1, size: 'xs', fill: C.amber });
+      if (handTo != null) {
+        const tx = s1x(handTo) + cw / 2;
+        path(`M ${x + cw / 2} ${hy - lift + 44} L ${tx} ${S1G.y - 8}`,
+             { stroke: C.amber, sw: 1.4, dash: '4 3', arrow: 'url(#arr)', op: .6 });
+      }
+      // the empty slot we will close back onto
+      const hole = s1x(S1.walk[0]) + cw / 2;
+      if (i < 9) T(hole, S1G.y + S1G.h + 34, 'empty', { c: 1, size: 'xs', fill: C.amber });
+    }
+
+    if (i === 10) {
+      // cycle summary
+      let y = 130;
+      T(90, 108, 'the cycles of  k’ = 3k mod 14', { size: 'sm', b: 1 });
+      for (const c of S1.cycles) {
+        const col = s1_colour(c[0], true);
+        box(90, y - 11, 14, 14, { fill: col.fill, stroke: col.stroke, rx: 2 });
+        T(114, y, (c.length === 1 ? 'fixed point · ' : 'length ' + c.length + ' · ') +
+                  '{ ' + c.join(', ') + ' }', { size: 'sm' });
+        y += 24;
+      }
+      T(90, y + 12, '15 slots, 5 cycles, 2 that do any work.', { size: 'sm', fill: C.mute });
+    }
+  },
+};
+SCENE1.ceiling = function (p) {
+    {
+      panel(300, 120, 600, 290, 'THE PARALLELISM CEILING');
+      const rows2 = [
+        ['3 x 5', '15', '5'],
+        ['1024 x 768', '786,432', '12'],
+        ['4096 x 3000', '12,288,000', '4'],
+        ['6203 x 6607', '40,983,221', '48'],
+      ];
+      T(330, 186, 'shape', { size: 'xs' });
+      T(680, 186, 'elements', { size: 'xs', r: 1 });
+      T(870, 186, 'cycles', { size: 'xs', r: 1 });
+      line(330, 194, 870, 194, { stroke: C.hair });
+      rows2.forEach((r, k) => {
+        const yy = 224 + k * 34, hot = k === 2;
+        if (hot) box(318, yy - 21, 564, 30, { fill: C.roseF, stroke: C.rose, op: .45, rx: 4 });
+        T(330, yy, r[0], { size: 'sm', b: hot ? 1 : 0, fill: hot ? C.rose : C.ink });
+        T(680, yy, r[1], { size: 'sm', r: 1, b: hot ? 1 : 0, fill: hot ? C.rose : C.ink });
+        T(870, yy, r[2], { size: 'sm', r: 1, b: 1, fill: hot ? C.rose : C.ink });
+      });
+      T(330, 386, 'counted with the same k’ = kP mod L map.', { size: 'xs' });
+      T(300, 444, '12 million elements. Four cycles. That is the ceiling a two-dimensional',
+        { size: 'sm', fill: C.mute });
+      T(300, 466, 'cycle walker runs into, and the rest of this page is the way around it.',
+        { size: 'sm', fill: C.mute });
+    }
+};
+
+// ====================================================================
+//  SCENE 2 -- Algorithm 5, super-elements and padding
+// ====================================================================
+function factorsOf(n) {
+  const f = [];
+  for (let d = 1; d * d <= n; d++) if (n % d === 0) { f.push(d); if (d !== n / d) f.push(n / d); }
+  return f.sort((a, b) => a - b);
+}
+
+function s2_factorLine(x, y, w, n, min, max, label, picked) {
+  const f = factorsOf(n);
+  T(x, y - 26, label, { size: 'sm', b: 1 });
+  // the window
+  const cw = 46, gap = 8;
+  const total = f.length * (cw + gap) - gap;
+  const sx = x + Math.max(0, (w - total) / 2);
+  f.forEach((v, k) => {
+    const inWin = v >= min && v < max;
+    const isPick = v === picked;
+    cell(sx + k * (cw + gap), y, cw, 34, String(v), {
+      fill: isPick ? C.tealF : (inWin ? C.blueF : C.slateF),
+      stroke: isPick ? C.teal : (inWin ? C.blue : C.line),
+      sw: isPick ? 2.2 : 1, tb: isPick,
+      tfill: isPick ? C.teal : (inWin ? C.blue : C.faint), tsize: 'sm',
+    });
+    if (isPick) T(sx + k * (cw + gap) + cw / 2, y + 52, 'smallest', { c: 1, size: 'xs', fill: C.teal });
+  });
+  return { sx, cw, gap, f };
+}
+
+const SCENE2 = {
+  id: 'super', tab: '2 . Super-elements',
+  steps: [
+    { cap: '<b>Algorithm 5.</b> Before anything moves, the method picks a ' +
+           '<b>super-element size</b>: the <b>smallest factor of the dimension that ' +
+           'lands inside the window</b> <code>[Min, &radic;LM_size)</code>. In the repo ' +
+           'that window is <code>[24, 159)</code> &mdash; <code>Min = 24</code> and ' +
+           '<code>LM_SIZE = 25344</code> floats of on-chip memory. Everything on this ' +
+           'page uses a scaled-down window so the pictures fit; the rule is identical.' },
+    { cap: 'Same search on the other dimension. Now <code>M = M&rsquo;&middot;m</code> and ' +
+           '<code>N = N&rsquo;&middot;n</code>. The two bounds are not arbitrary: the ' +
+           '<b>upper</b> one is <code>&radic;LM_size</code> because an <code>m&times;n</code> ' +
+           'tile has to fit in on-chip memory, and the <b>lower</b> one keeps the tile wide ' +
+           'enough that a warp is not mostly idle.' },
+    { cap: '<span class="hl-pad">And if the window is empty?</span> 6203 is prime, so its ' +
+           'only factors are 1 and 6203 and neither is in <code>[24, 159)</code>. ' +
+           'Algorithm 5\'s answer is to <b>grow the dimension until a factor appears</b>. ' +
+           '6203 becomes 6204, which factors as 33&times;188. This is the step that costs ' +
+           'memory, and it is where the method pays for being in place.' },
+    { cap: 'In their own regime the padding is almost free &mdash; 12,811 extra elements on ' +
+           '40,983,221 is <b>0.03%</b>. Hold on to that, because it stops being free the ' +
+           'moment this gets generalised past two dimensions, and the last scene comes back ' +
+           'to it.' },
+    { cap: 'With <code>m</code> and <code>n</code> in hand the matrix is re-read as ' +
+           '<b>four axes</b> instead of two: <code>[M&rsquo;, m, N&rsquo;, n]</code>. Nothing ' +
+           'has moved and nothing has been copied &mdash; this is the same memory, described ' +
+           'differently. The transpose is now a <b>reordering of those four axes</b>, and ' +
+           'that is the whole trick.' },
+  ],
+  draw(i, p) {
+    if (i <= 1) {
+      const isM = i === 0;
+      panel(60, 56, 1080, 200, isM ? 'STEP 1 · SUPER-ELEMENT FOR M' : 'STEP 2 · AND FOR N');
+      const n = isM ? TOY.M : TOY.N, pick = isM ? TOY.m : TOY.n;
+      T(90, 108, 'factors of ' + n + (isM ? '   (M)' : '   (N)'), { size: 'sm', fill: C.mute });
+      s2_factorLine(90, 150, 1020, n, TOY.MIN, TOY.MAX, '', pick);
+      box(90, 214, 1020, 30, { fill: C.blueF, stroke: C.blue, op: .35, rx: 4 });
+      T(600, 229, 'window  [ Min , √LM_size )   =   [ ' + TOY.MIN + ' , ' + TOY.MAX +
+                  ' )     — scaled down for drawing',
+        { c: 1, size: 'sm', b: 1, fill: C.blue });
+
+      panel(60, 276, 530, 180, 'THE REAL WINDOW');
+      T(84, 316, 'Min', { size: 'sm' });     T(300, 316, String(REAL.MIN), { size: 'sm', r: 1, b: 1 });
+      T(84, 342, 'LM_size', { size: 'sm' }); T(300, 342, REAL.LM.toLocaleString() + ' floats', { size: 'sm', r: 1, b: 1 });
+      T(84, 368, '√LM_size', { size: 'sm' }); T(300, 368, String(REAL.MAX), { size: 'sm', r: 1, b: 1 });
+      T(84, 400, 'so a real super-element is', { size: 'sm', fill: C.mute });
+      T(84, 422, 'somewhere in [24, 159).', { size: 'sm', fill: C.mute });
+      T(330, 400, 'two_dims/gomezluna/', { size: 'xs' });
+      T(330, 416, 'decomposition.py', { size: 'xs' });
+
+      panel(610, 276, 530, 180, 'WHAT WE HAVE SO FAR');
+      const got = [
+        ['M', TOY.M, isM || true], ['m', isM ? TOY.m : TOY.m, isM],
+        ['M’ = M/m', TOY.Mp, isM],
+        ['N', TOY.N, true], ['n', TOY.n, i === 1], ['N’ = N/n', TOY.Np, i === 1],
+      ];
+      got.forEach((r, k) => {
+        const col = k < 3 ? 0 : 1, row = k % 3;
+        const xx = 640 + col * 250, yy = 320 + row * 30;
+        const on = k < 3 ? (k === 0 || isM) : (k === 3 || i === 1);
+        T(xx, yy, r[0], { size: 'sm', fill: on ? C.ink : C.hair });
+        T(xx + 160, yy, on ? String(r[1]) : '?', { size: 'sm', r: 1, b: 1, fill: on ? C.teal : C.hair });
+      });
+      return;
+    }
+
+    if (i === 2 || i === 3) {
+      panel(60, 56, 1080, 190, 'WHEN THE WINDOW IS EMPTY — THE PAPER’S OWN EXAMPLE');
+      T(90, 96, 'M = 6203,  prime.   Factors:', { size: 'sm' });
+      [1, 6203].forEach((v, k) => cell(340 + k * 90, 80, 80, 26, String(v),
+        { fill: C.slateF, stroke: C.line, tsize: 'sm', tfill: C.faint }));
+      T(530, 96, 'neither is in [ 24 , 159 )', { size: 'sm', fill: C.rose, b: 1 });
+
+      const padW = Math.round(lerp(0, 1, ease(i === 2 ? p : 1)));
+      T(90, 140, 'so pad:', { size: 'sm' });
+      cell(160, 124, 90, 28, '6203', { fill: C.slateF, stroke: C.line, tsize: 'sm', tfill: C.faint });
+      path('M 258 138 L 292 138', { stroke: C.rose, sw: 2, arrow: 'url(#arr)' });
+      cell(300, 124, 90, 28, '6204', { fill: C.roseF, stroke: C.rose, sw: 2, tsize: 'sm', tb: 1, tfill: C.rose, op: padW });
+      T(408, 140, 'factors of 6204 in the window:', { size: 'sm', op: padW });
+      [33, 44, 47, 66, 94, 132, 141].forEach((v, k) =>
+        cell(700 + k * 62, 124, 54, 28, String(v), {
+          fill: v === 33 ? C.tealF : C.blueF, stroke: v === 33 ? C.teal : C.blue,
+          sw: v === 33 ? 2 : 1, tsize: 'sm', tb: v === 33, tfill: v === 33 ? C.teal : C.blue, op: padW }));
+      T(727, 172, 'm = 33', { c: 1, size: 'xs', fill: C.teal, b: 1 });
+
+      T(90, 212, 'N = 6607 is prime too → 6608 = 28 × 236,  so  n = 28.', { size: 'sm' });
+
+      if (i === 3) {
+        panel(60, 266, 530, 190, 'THE BILL, IN THEIR REGIME');
+        const rr = [
+          ['6203 × 6607', '40,983,221 elements'],
+          ['6204 × 6608', '40,996,032 elements'],
+          ['extra', '12,811 elements'],
+          ['overhead', '0.03 %'],
+        ];
+        rr.forEach((r, k) => {
+          const yy = 306 + k * 30, hot = k >= 2;
+          T(84, yy, r[0], { size: 'sm', fill: hot ? C.rose : C.ink, b: hot });
+          T(566, yy, r[1], { size: 'sm', r: 1, b: 1, fill: hot ? C.rose : C.ink });
+        });
+        T(84, 436, 'The paper reports at most 8 extra rows or columns.', { size: 'xs' });
+
+        panel(610, 266, 530, 190, 'THE FINAL FOUR NUMBERS');
+        const q = [['M’', REAL.ex.Mp], ['m', REAL.ex.m], ['N’', REAL.ex.Np], ['n', REAL.ex.n]];
+        q.forEach((r, k) => {
+          cell(640 + k * 122, 310, 108, 62, '', { fill: C.panel, stroke: C.line, rx: 5 });
+          T(694 + k * 122, 332, r[0], { c: 1, size: 'sm', fill: C.mute });
+          T(694 + k * 122, 356, String(r[1]), { c: 1, b: 1, fill: C.teal });
+        });
+        T(640, 400, '188 × 33 = 6204   ·   236 × 28 = 6608', { size: 'sm' });
+        T(640, 428, 'sequence ' + REAL.ex.seq + ' — three stages, next scene.', { size: 'sm', fill: C.mute });
+      }
+      return;
+    }
+
+    // i === 4 : the four-axis re-read
+    const cw = 30, gx = 120, gy = 96;
+    T(gx, gy - 22, 'the same 12 x 10 matrix, with the m and n cuts drawn on', { size: 'sm', fill: C.faint });
+    for (let r = 0; r < TOY.M; r++) for (let c = 0; c < TOY.N; c++) {
+      const blockR = Math.floor(r / TOY.m), blockC = Math.floor(c / TOY.n);
+      const tint = (blockR + blockC) % 2 === 0;
+      cell(gx + c * cw, gy + r * cw, cw - 2, cw - 2, String(r * TOY.N + c),
+        { fill: tint ? C.blueF : C.panel, stroke: C.hair, tsize: 'xs', tfill: C.mute });
+    }
+    // the m / n block boundaries
+    const alpha = ease(p);
+    for (let r = 0; r <= TOY.Mp; r++)
+      line(gx - 4, gy + r * TOY.m * cw - 2, gx + TOY.N * cw - 6, gy + r * TOY.m * cw - 2,
+           { stroke: C.blue, sw: 1.6, op: alpha });
+    for (let c = 0; c <= TOY.Np; c++)
+      line(gx + c * TOY.n * cw - 2, gy - 4, gx + c * TOY.n * cw - 2, gy + TOY.M * cw - 6,
+           { stroke: C.violet, sw: 1.6, op: alpha });
+    T(gx - 16, gy + TOY.M * cw / 2, 'M = 12', { r: 1, size: 'sm', b: 1 });
+    T(gx + TOY.N * cw / 2 - 3, gy - 42, 'N = 10', { c: 1, size: 'sm', b: 1 });
+
+    panel(560, 96, 580, 150, 'THE SAME MEMORY, FOUR AXES');
+    const AX = [
+      { k: 'M’', v: TOY.Mp, c: C.blue,   f: C.blueF },
+      { k: 'm',       v: TOY.m,  c: C.amber,  f: C.amberF },
+      { k: 'N’', v: TOY.Np, c: C.violet, f: C.violetF },
+      { k: 'n',       v: TOY.n,  c: C.teal,   f: C.tealF },
+    ];
+    let ax = 590;
+    AX.forEach(a => {
+      const w = a.v * 40;
+      cell(ax, 146, w - 6, 54, '', { fill: a.f, stroke: a.c, sw: 1.6, rx: 5 });
+      T(ax + (w - 6) / 2, 166, a.k, { c: 1, b: 1, fill: a.c });
+      T(ax + (w - 6) / 2, 188, String(a.v), { c: 1, size: 'sm', fill: a.c });
+      ax += w;
+    });
+    T(590, 224, 'outermost → innermost.   Product = 120 = 12 × 10.', { size: 'xs' });
+
+    panel(560, 266, 580, 190, 'WHY THIS IS THE WHOLE TRICK');
+    T(584, 306, 'M’ · m · N’ · n  is still row-major memory:', { size: 'sm' });
+    T(584, 332, 'strides  m·N ,  N ,  n ,  1  — nothing copied.', { size: 'sm', fill: C.mute });
+    T(584, 368, 'A transpose swaps the two halves.', { size: 'sm' });
+    T(584, 390, 'As four axes, that is a short list of', { size: 'sm' });
+    T(584, 412, 'adjacent-axis swaps — and each one', { size: 'sm' });
+    T(584, 434, 'can be run by a different kernel.', { size: 'sm', b: 1, fill: C.blue });
+  },
+};
+
+// ====================================================================
+//  SCENE 3 -- the three stages of sequence 3.2
+// ====================================================================
+const S3_AX = {
+  Mp: { k: 'M’', v: TOY.Mp, c: C.blue,   f: C.blueF },
+  m:  { k: 'm',       v: TOY.m,  c: C.amber,  f: C.amberF },
+  Np: { k: 'N’', v: TOY.Np, c: C.violet, f: C.violetF },
+  n:  { k: 'n',       v: TOY.n,  c: C.teal,   f: C.tealF },
+};
+const S3_ORDER = [
+  ['Mp', 'm', 'Np', 'n'],       // start                [M', m, N', n]
+  ['Mp', 'Np', 'm', 'n'],       // after stage 1 PTTWAC
+  ['Mp', 'Np', 'n', 'm'],       // after stage 2 BS
+  ['Np', 'n', 'Mp', 'm'],       // after stage 3 PTTWAC  = [N, M', m] = N x M
+];
+const S3_UNIT = 42, S3_X0 = 320, S3_Y = 92, S3_H = 56;
+
+function s3_positions(order) {
+  const out = {}; let x = S3_X0;
+  for (const id of order) { const w = S3_AX[id].v * S3_UNIT; out[id] = { x, w }; x += w; }
+  return out;
+}
+
+// one colour per original column j = 0..9, ordered, so the picture reads as
+// "the columns are sorting themselves into rows".
+const RAMP = ['#440154', '#482878', '#3e4989', '#31688e', '#26828e',
+              '#1f9e89', '#35b779', '#6ece58', '#b5de2b', '#fde725'];
+const RAMP_TEXT = j => (j <= 5 ? '#ffffff' : '#1e293b');
+
+function s3_strip(layout, x0, y0, perRow, cw, ch) {
+  for (let k = 0; k < layout.length; k++) {
+    const j = layout[k] % TOY.N;
+    const r = Math.floor(k / perRow), c = k % perRow;
+    cell(x0 + c * cw, y0 + r * ch, cw - 2, ch - 2, String(j), {
+      fill: RAMP[j], stroke: RAMP[j],
+      tsize: 'xs', tfill: RAMP_TEXT(j), tb: 1, rx: 2,
+    });
+  }
+}
+
+const SCENE3 = {
+  id: 'stages', tab: '3 . The three stages',
+  steps: [
+    { cap: 'Sequence <b>3.2</b>, straight out of <code>decomposition.py</code>. Four axes, ' +
+           'and the memory strip below coloured by each element\'s <b>original column</b> ' +
+           '<code>j</code>. Right now every line of memory runs through all ten columns, ' +
+           'because that is what a row of the matrix is. Watch the colours sort themselves.' },
+    { cap: '<span class="hl-pt">Stage 1 &mdash; PTTWAC.</span> Slide <code>m</code> past ' +
+           '<code>N&rsquo;</code>. Run as a batch of <code>M&rsquo;=6</code> independent ' +
+           '<code>2&times;5</code> transposes, each element of which is an ' +
+           '<code>n=2</code>-wide run carried as one unit. This one is too big for on-chip ' +
+           'memory, so it goes through the atomic cycle walker &mdash; scene 5.' },
+    { cap: '<span class="hl-bs">Stage 2 &mdash; BS.</span> Slide <code>m</code> past ' +
+           '<code>n</code>. This is the <b>only stage that touches the fine structure</b>, ' +
+           'and by construction the tile is <code>m&times;n</code>, which fits on chip. ' +
+           '30 independent <code>2&times;2</code> tiles, no atomics, no cycles &mdash; ' +
+           'scene 4. This is where <code>&radic;LM_size</code> came from.' },
+    { cap: '<span class="hl-pt">Stage 3 &mdash; PTTWAC.</span> <code>N&rsquo;</code> and ' +
+           '<code>n</code> are adjacent, so together they are just <code>N=10</code> again. ' +
+           'Slide <code>M&rsquo;</code> past it: one <code>6&times;10</code> transpose, ' +
+           '<code>m=2</code> wide. The strip is now ten solid bands &mdash; ten rows of ' +
+           'twelve, each row one original column. That is <code>Aᵀ</code>.' },
+    { cap: '<b>Now look at what every stage actually was.</b> Each one exchanged two ' +
+           '<b>adjacent groups of axes</b>, with everything to the left batched over and ' +
+           'everything to the right carried along as a contiguous run. That is exactly the ' +
+           '<b>box swap</b> of this repo, and ITTPD\'s <code>&rho;(i,j,k)</code>. The ' +
+           'decomposition is common ground. What differs is <b>how each swap is run</b>, and ' +
+           '<b>how the sequence is chosen</b>.' },
+  ],
+  draw(i, p) {
+    const from = s3_positions(S3_ORDER[Math.max(0, Math.min(i, 3) - 1)]);
+    const to   = s3_positions(S3_ORDER[Math.min(i, 3)]);
+    const t = i === 0 || i === 4 ? 1 : ease(p);
+
+    T(60, 62, 'AXIS ORDER', { size: 'hd' });
+    for (const id of ['Mp', 'm', 'Np', 'n']) {
+      const a = S3_AX[id];
+      const x = lerp(from[id].x, to[id].x, t), w = to[id].w;
+      cell(x, S3_Y, w - 6, S3_H, '', { fill: a.f, stroke: a.c, sw: 1.8, rx: 5 });
+      T(x + (w - 6) / 2, S3_Y + 22, a.k, { c: 1, b: 1, fill: a.c });
+      T(x + (w - 6) / 2, S3_Y + 42, String(a.v), { c: 1, size: 'sm', fill: a.c });
+    }
+    if (i >= 3) {   // the N bracket
+      const x1 = to.Np.x, x2 = to.n.x + to.n.w - 6;
+      path(`M ${x1} ${S3_Y + S3_H + 8} L ${x1} ${S3_Y + S3_H + 16} L ${x2} ${S3_Y + S3_H + 16} L ${x2} ${S3_Y + S3_H + 8}`,
+           { stroke: C.violet, sw: 1.4, op: t });
+      T((x1 + x2) / 2, S3_Y + S3_H + 30, 'N’ · n = N = 10',
+        { c: 1, size: 'xs', fill: C.violet, op: t });
+    }
+    T(1160, S3_Y + 30, i < 3 ? '' : '= N × M', { r: 1, size: 'sm', b: 1, fill: C.blue });
+
+    // the stage card
+    const stage = i >= 1 && i <= 3 ? TOY.stages[i - 1] : null;
+    panel(60, 190, 400, 130, 'STAGE ' + (stage ? i : '—'));
+    if (stage) {
+      const isBS = stage.mode === 'bs';
+      const col = isBS ? C.teal : C.orange, fil = isBS ? C.tealF : C.orangeF;
+      cell(84, 218, 150, 34, isBS ? 'BS' : 'PTTWAC',
+        { fill: fil, stroke: col, sw: 2, tb: 1, tfill: col, rx: 5 });
+      T(250, 236, isBS ? 'on chip, barrier' : 'global, atomic claim', { size: 'sm', fill: col });
+      const f = [['batch', stage.batch], ['P × Q', stage.P + ' × ' + stage.Q],
+                 ['W (width carried)', stage.W]];
+      f.forEach((r, k) => {
+        T(84, 278 + k * 22, r[0], { size: 'sm', fill: C.mute });
+        T(436, 278 + k * 22, String(r[1]), { size: 'sm', r: 1, b: 1 });
+      });
+    } else {
+      T(84, 232, i === 0 ? 'nothing has run yet.' : 'all three stages done.', { size: 'sm', fill: C.mute });
+      if (i === 4) {
+        T(84, 262, 'PTTWAC  →  BS  →  PTTWAC', { size: 'sm', b: 1 });
+        T(84, 290, 'and the result is verified on load', { size: 'xs' });
+        T(84, 306, '(check the console).', { size: 'xs' });
+      }
+    }
+
+    // the memory strip
+    const layout = LAYOUTS[Math.min(i, 3)];
+    T(560, 186, 'MEMORY, 120 SLOTS — EACH CELL SHOWS ITS ORIGINAL COLUMN  j', { size: 'hd' });
+    s3_strip(layout, 560, 200, 12, 32, 26);
+    T(560, 480, i >= 3
+        ? 'ten rows of twelve, each one a single colour. that is the 10 x 12 output.'
+        : 'linear memory, drawn 12 per line — the width of the finished output.',
+      { size: 'xs', fill: i >= 3 ? C.blue : C.faint });
+    if (i >= 3) {
+      box(556, 196, 392, 264, { fill: 'none', stroke: C.blue, sw: 2, rx: 4, op: ease(p) });
+      T(956, 328, 'Aᵀ', { size: 'sm', b: 1, fill: C.blue });
+    }
+
+    if (i === 4) {
+      panel(60, 340, 400, 150, 'WHAT EVERY STAGE WAS');
+      T(84, 378, 'exchange two adjacent axis groups', { size: 'sm', b: 1 });
+      T(84, 402, 'batch over everything to the left', { size: 'sm', fill: C.mute });
+      T(84, 424, 'carry everything to the right as a run', { size: 'sm', fill: C.mute });
+      line(84, 440, 436, 440, { stroke: C.hair });
+      T(84, 464, 'that is a box swap.', { size: 'sm', b: 1, fill: C.blue });
+      T(84, 482, 'src/_plan.py, and ITTPD’s ρ(i,j,k).', { size: 'xs' });
+    }
+  },
+};
+
+// ====================================================================
+//  SCENE 4 -- the BS kernel
+// ====================================================================
+const S4 = { P: 3, Q: 5 };
+S4.L = S4.P * S4.Q - 1;
+const S4G = { x: 130, gy: 150, sy: 300, w: 66, h: 46 };
+const s4x = k => S4G.x + k * S4G.w;
+
+const SCENE4 = {
+  id: 'bs', tab: '4 . BS  (on chip)',
+  steps: [
+    { cap: '<span class="hl-bs">BS</span> &mdash; &ldquo;barrier synchronisation&rdquo;, Fig. 1 ' +
+           'of the paper. It runs a tile that <b>fits entirely in shared memory</b>. One CUDA ' +
+           'block owns the whole <code>P&times;Q</code> tile. Shown here on the 3&times;5 from ' +
+           'scene 1, the one that cost us a six-step sequential cycle walk.' },
+    { cap: 'Every thread reads <code>tile[k]</code> from global memory and writes it to ' +
+           '<code>smem[k&middot;P mod L]</code> &mdash; the <b>same destination formula</b>, ' +
+           'but the target is on-chip scratch, not the array itself. Nothing is overwritten, ' +
+           'so <b>nothing has to be carried</b>. All fifteen writes are independent.' },
+    { cap: '<code>__syncthreads()</code>. One barrier, and the entire permutation is done. ' +
+           'No cycles, no atomics, no claim bitmap, no order to respect. <b>The barrier is ' +
+           'what replaces the whole cycle discipline</b> &mdash; that is the single idea in ' +
+           'this kernel.' },
+    { cap: 'Copy back linearly: <code>tile[k] = smem[k]</code>. Coalesced in both directions. ' +
+           'The six-step sequential walk from scene 1 has become <b>two parallel passes and a ' +
+           'barrier</b>.' },
+    { cap: 'And here is where the window <code>[24, &radic;LM_size)</code> came from. BS needs ' +
+           '<code>P&middot;Q</code> floats of shared memory, so a tile side is capped at ' +
+           '<code>&radic;25344 = 159</code>. <b>Everything in Algorithm 5 exists to make sure ' +
+           'the fine-grained stage is a tile this kernel can take.</b> The coarse stages that ' +
+           'are left over are the ones that have to go to global memory.' },
+  ],
+  draw(i, p) {
+    const src = Array.from({ length: 15 }, (_, k) => k);
+    const dst = new Array(15);
+    for (let k = 0; k < 15; k++) dst[dest(k, S4.P, S4.Q)] = k;
+
+    T(60, 84, 'one CUDA block  ·  tile P = 3, Q = 5  ·  L = P·Q − 1 = 14',
+      { size: 'sm', fill: C.faint });
+
+    // global row
+    T(S4G.x - 16, S4G.gy + S4G.h / 2, 'global', { r: 1, size: 'sm', b: 1 });
+    T(S4G.x - 16, S4G.gy + S4G.h / 2 + 16, 'tile[k]', { r: 1, size: 'xs' });
+    const written = i >= 3;
+    for (let k = 0; k < 15; k++) {
+      const v = written ? dst[k] : src[k];
+      cell(s4x(k), S4G.gy, S4G.w - 6, S4G.h, String(v), {
+        fill: written ? C.tealF : C.panel, stroke: written ? C.teal : C.line,
+        sw: written ? 1.6 : 1, tb: written, tfill: written ? C.teal : C.ink });
+      T(s4x(k) + (S4G.w - 6) / 2, S4G.gy - 12, String(k), { c: 1, size: 'xs' });
+    }
+
+    // shared row
+    const smemOn = i >= 1;
+    T(S4G.x - 16, S4G.sy + S4G.h / 2, 'shared', { r: 1, size: 'sm', b: 1, fill: smemOn ? C.teal : C.hair });
+    T(S4G.x - 16, S4G.sy + S4G.h / 2 + 16, 'smem[k’]', { r: 1, size: 'xs' });
+    box(S4G.x - 8, S4G.sy - 10, 15 * S4G.w + 4, S4G.h + 20,
+        { fill: smemOn ? C.tealF : C.slateF, stroke: smemOn ? C.teal : C.hair, rx: 6, op: .5 });
+    for (let k = 0; k < 15; k++) {
+      let v = '';
+      if (i === 1) { const q = (k) => dst[k]; v = ease(p) > (dst[k] / 15) * .8 ? String(dst[k]) : ''; }
+      else if (i >= 2) v = String(dst[k]);
+      cell(s4x(k), S4G.sy, S4G.w - 6, S4G.h, v, {
+        fill: v === '' ? C.panel : C.tealF, stroke: v === '' ? C.hair : C.teal,
+        tb: v !== '', tfill: C.teal });
+      T(s4x(k) + (S4G.w - 6) / 2, S4G.sy + S4G.h + 16, String(k), { c: 1, size: 'xs' });
+    }
+
+    // the scatter
+    if (i === 1) {
+      const t = ease(p);
+      for (let k = 0; k < 15; k++) {
+        const kp = dest(k, S4.P, S4.Q);
+        const local = Math.max(0, Math.min(1, (t - (k / 15) * .5) / .5));
+        if (local <= 0) continue;
+        const x1 = s4x(k) + (S4G.w - 6) / 2, x2 = s4x(kp) + (S4G.w - 6) / 2;
+        const y1 = S4G.gy + S4G.h, y2 = S4G.sy;
+        path(`M ${x1} ${y1} C ${x1} ${y1 + 50}, ${x2} ${y2 - 50}, ${x2} ${lerp(y1, y2, local)}`,
+             { stroke: C.teal, sw: 1.3, op: .55, arrow: local > .95 ? 'url(#arrG)' : null });
+      }
+      box(404, 236, 392, 26, { fill: C.bgSolid, stroke: C.tealF, rx: 4, op: .93 });
+      T(600, 250, 'smem[ k·P mod L ] = tile[ k ]  —  all 15 at once',
+        { c: 1, size: 'sm', b: 1, fill: C.teal });
+    }
+    if (i === 2) {
+      const y = 250;
+      line(S4G.x - 8, y, S4G.x + 15 * S4G.w - 4, y, { stroke: C.teal, sw: 3 });
+      T(600, y - 12, '__syncthreads()', { c: 1, b: 1, fill: C.teal });
+      T(600, 274, 'the permutation is complete, and it never had to be in place',
+        { c: 1, size: 'sm', fill: C.mute });
+    }
+    if (i === 3) {
+      const t = ease(p);
+      for (let k = 0; k < 15; k++) {
+        const x = s4x(k) + (S4G.w - 6) / 2;
+        const local = Math.max(0, Math.min(1, (t - (k / 15) * .4) / .6));
+        if (local <= 0) continue;
+        line(x, S4G.sy, x, lerp(S4G.sy, S4G.gy + S4G.h, local),
+             { stroke: C.teal, sw: 1.6, op: .7, arrow: local > .95 ? 'url(#arrG)' : null });
+      }
+      box(440, 236, 320, 26, { fill: C.bgSolid, stroke: C.tealF, rx: 4, op: .93 });
+      T(600, 250, 'tile[ k ] = smem[ k ]  —  linear, coalesced',
+        { c: 1, size: 'sm', b: 1, fill: C.teal });
+    }
+
+    if (i === 4) {
+      panel(130, 400, 470, 96, 'THE ONLY CONSTRAINT');
+      T(154, 438, 'shared memory needed  =  P · Q floats', { size: 'sm' });
+      T(154, 464, 'so a tile side ≤ √25344  =  159', { size: 'sm', b: 1, fill: C.teal });
+
+      panel(620, 400, 470, 96, 'WHICH IS WHY');
+      T(644, 438, 'Algorithm 5 picks m, n < 159 — so the', { size: 'sm' });
+      T(644, 464, 'fine-grained stage is always a BS tile.', { size: 'sm', b: 1, fill: C.teal });
+    } else {
+      T(130, 424, 'the 3 x 5 cycle walk in scene 1 took 6 sequential steps.', { size: 'sm', fill: C.faint });
+      T(130, 448, 'this takes two parallel passes and one barrier.', { size: 'sm', fill: i >= 3 ? C.teal : C.faint, b: i >= 3 });
+    }
+  },
+};
+
+// ====================================================================
+//  SCENE 5 -- the PTTWAC kernel
+// ====================================================================
+const S5 = { P: 2, Q: 5, W: 2 };
+S5.PQ = S5.P * S5.Q; S5.L = S5.PQ - 1;
+S5.cycles = cyclesOf(S5.P, S5.Q);
+
+// Simulate pttwac_kernel exactly: load start, check start claimed, then loop
+// { read nxt, claim nxt, if already claimed break, write, advance }.
+function pttwacRun(schedule) {
+  const { P, Q, W, PQ, L } = S5;
+  const data = Array.from({ length: PQ }, (_, k) => k);
+  const done = new Array(PQ).fill(0);
+  const blocks = {};
+  for (let s = 0; s < PQ; s++) {
+    if (s === 0 || s === L) continue;
+    const nx = (s * P) % L;
+    if (nx === s) continue;
+    blocks[s] = { r1: data[s], nxt: nx, alive: true, wrote: [] };
+  }
+  const frames = [{ data: data.slice(), done: done.slice(),
+                    blocks: JSON.parse(JSON.stringify(blocks)), ev: [] }];
+  for (const order of schedule) {
+    const ev = [];
+    for (const s of order) {
+      const b = blocks[s];
+      if (!b || !b.alive) continue;
+      const nxt = b.nxt, r2 = data[nxt];
+      if (done[nxt]) { b.alive = false; ev.push({ s, nxt, kind: 'quit' }); continue; }
+      done[nxt] = 1; data[nxt] = b.r1; b.r1 = r2; b.wrote.push(nxt);
+      b.nxt = nxt === L ? L : (nxt * P) % L;
+      ev.push({ s, nxt, kind: 'wrote' });
+    }
+    frames.push({ data: data.slice(), done: done.slice(),
+                  blocks: JSON.parse(JSON.stringify(blocks)), ev });
+    if (!Object.values(blocks).some(b => b.alive)) break;
+  }
+  // check
+  const want = new Array(PQ);
+  for (let k = 0; k < PQ; k++) want[dest(k, P, Q)] = k;
+  frames.ok = data.every((v, k) => v === want[k]);
+  return frames;
+}
+const LIVE = Object.keys(
+  Object.fromEntries(Array.from({ length: S5.PQ }, (_, s) => [s, 1])
+    .filter(([s]) => +s !== 0 && +s !== S5.L))).map(Number);
+
+const SCHED_LOCK = Array.from({ length: 6 }, () => LIVE);
+const SCHED_SKEW = [
+  [1], [1], [1], [1], [1], [1],      // one block walks the 6-cycle alone
+  [3], [3], [3],                      // then one walks the 2-cycle
+  LIVE, LIVE,                         // everyone else wakes up and quits
+];
+const RUN = { lock: pttwacRun(SCHED_LOCK), skew: pttwacRun(SCHED_SKEW) };
+console.assert(RUN.lock.ok && RUN.skew.ok,
+  'PTTWAC simulation does not reproduce the stage transpose');
+
+const S5G = { x: 170, y: 120, cw: 36, gap: 14, h: 40 };
+const s5x = k => S5G.x + k * (S5.W * S5G.cw + S5G.gap);
+
+const SCENE5 = {
+  id: 'pttwac', tab: '5 . PTTWAC  (global)',
+  steps: [
+    { cap: '<span class="hl-pt">PTTWAC</span> handles the stages that <b>do not fit on chip</b> ' +
+           '&mdash; stage 1 of our plan, <code>2&times;5</code> with <code>W=2</code>. ' +
+           'Ten grid positions, each a 2-wide run carried as one unit. ' +
+           'Positions 0 and <code>L=9</code> are fixed points and return immediately. ' +
+           'The cycles are the same old <code>k&middot;P mod L</code>.' },
+    { cap: '<b>One CUDA block per grid position</b> &mdash; not one per cycle. All eight live ' +
+           'blocks start at once, each cooperatively loading <b>its own</b> super-element into ' +
+           'registers. Note that eight blocks are about to walk only <b>two</b> cycles. That ' +
+           'redundancy is the entire point.' },
+    { cap: 'The protocol, one step at a time: read the next position, <b>atomically claim it</b>, ' +
+           'and only write if the claim came back unset. The claim bitmap is one bit per ' +
+           'position. Crucially a block <b>never claims its own start</b> &mdash; only the ' +
+           'position it is about to overwrite, one step ahead. ' +
+           'Press <b>Next</b> to run the ticks.' },
+    { cap: '' },   // filled per tick
+    { cap: '<b>Done, and every block moved exactly one element.</b> Two cycles, but ' +
+           'eight-way parallelism &mdash; each block wrote one position and then found the ' +
+           'next one already claimed and quit. <b>That is what PTTWAC buys</b>: parallelism ' +
+           'proportional to <code>P&middot;Q</code> instead of to the number of cycles.' },
+    { cap: 'The price. A <b>claim bitmap in global memory</b>, one bit per grid position, ' +
+           'zeroed before every stage &mdash; plus a read of each position that may be thrown ' +
+           'away when the claim fails. And correctness cannot lean on the order at all: try ' +
+           'the <b>skewed schedule</b> button, where one block runs the whole cycle and ' +
+           'everyone else quits having done nothing. Same answer.' },
+  ],
+  altLabel: 'Re-run with a skewed schedule',
+  draw(i, p, mode) {
+    const run = RUN[mode === 'skew' ? 'skew' : 'lock'];
+    // which frame of the simulation this step shows
+    let fi = 0;
+    if (i <= 2) fi = 0;
+    else if (i === 3) fi = Math.min(SCENE5._tick || 1, run.length - 1);
+    else fi = run.length - 1;
+    const F = run[fi];
+
+    T(60, 78, 'stage 1 of the plan  ·  batch of 6, one shown  ·  P = 2, Q = 5, W = 2, L = 9',
+      { size: 'sm', fill: C.faint });
+
+    // --- the data row: 10 positions, 2 lanes each ---
+    T(S5G.x - 16, S5G.y + S5G.h / 2, 'data', { r: 1, size: 'sm', b: 1 });
+    for (let k = 0; k < S5.PQ; k++) {
+      const isFixed = k === 0 || k === S5.L;
+      const ci = S5.cycles.findIndex(c => c.includes(k));
+      const nt = S5.cycles.filter(c => c.length > 1);
+      const col = isFixed ? FIXED : CYC[nt.findIndex(c => c.includes(k)) % CYC.length];
+      const justWrote = F.ev.some(e => e.nxt === k && e.kind === 'wrote');
+      for (let w = 0; w < S5.W; w++) {
+        cell(s5x(k) + w * S5G.cw, S5G.y, S5G.cw - 3, S5G.h,
+          F.data[k] * 10 + w, {
+            fill: justWrote ? C.amberF : col.f,
+            stroke: justWrote ? C.amber : col.s,
+            sw: justWrote ? 2 : 1, tsize: 'xs', tb: 1,
+            tfill: justWrote ? C.amber : col.s });
+      }
+      T(s5x(k) + S5.W * S5G.cw / 2 - 2, S5G.y - 12, String(k), { c: 1, size: 'xs' });
+      if (isFixed) T(s5x(k) + S5.W * S5G.cw / 2 - 2, S5G.y + S5G.h + 14, 'fixed',
+                     { c: 1, size: 'xs', fill: FIXED.s });
+    }
+    T(S5G.x - 16, S5G.y - 12, 'pos', { r: 1, size: 'xs' });
+    const s5r = S5G.x + 10 * (S5.W * S5G.cw + S5G.gap) + 12;
+    T(s5r, S5G.y + S5G.h / 2 - 5, 'each position is', { size: 'xs' });
+    T(s5r, S5G.y + S5G.h / 2 + 9, 'W = 2 floats wide', { size: 'xs' });
+
+    // --- the claim bitmap ---
+    const by = 212;
+    T(S5G.x - 16, by + 14, 'claim', { r: 1, size: 'sm', b: 1, fill: i >= 2 ? C.orange : C.hair });
+    T(S5G.x - 16, by + 30, 'bitmap', { r: 1, size: 'xs' });
+    for (let k = 0; k < S5.PQ; k++) {
+      const on = i >= 2 && F.done[k];
+      cell(s5x(k), by, S5.W * S5G.cw - 3, 28, on ? '1' : '0', {
+        fill: on ? C.orangeF : C.panel, stroke: on ? C.orange : C.hair,
+        sw: on ? 1.6 : 1, tsize: 'xs', tb: on, tfill: on ? C.orange : C.faint });
+    }
+    T(s5r, by + 8, 'one bit per position,', { size: 'xs', fill: i >= 2 ? C.orange : C.hair });
+    T(s5r, by + 22, 'in global memory', { size: 'xs', fill: i >= 2 ? C.orange : C.hair });
+
+    // --- the blocks ---
+    const bx = 170, byy = 288, bw = 108, bh = 86;
+    T(60, byy - 14, 'BLOCKS', { size: 'hd' });
+    const ids = Object.keys(F.blocks).map(Number).sort((a, b) => a - b);
+    ids.forEach((s, k) => {
+      const b = F.blocks[s];
+      const ev = F.ev.find(e => e.s === s);
+      const dead = !b.alive;
+      const quit = ev && ev.kind === 'quit';
+      const wrote = ev && ev.kind === 'wrote';
+      const x = bx + k * (bw + 10);
+      box(x, byy, bw, bh, {
+        fill: quit ? C.roseF : wrote ? C.amberF : dead ? C.slateF : C.panel,
+        stroke: quit ? C.rose : wrote ? C.amber : dead ? C.line : C.line,
+        sw: wrote || quit ? 2 : 1, rx: 5 });
+      T(x + bw / 2, byy + 18, 'block ' + s, { c: 1, size: 'xs', b: 1,
+        fill: quit ? C.rose : wrote ? C.amber : C.mute });
+      if (i <= 1 && i >= 1) {
+        T(x + bw / 2, byy + 42, 'holds ' + s, { c: 1, size: 'sm', b: 1, fill: C.blue });
+        T(x + bw / 2, byy + 62, '→ ' + b.nxt, { c: 1, size: 'xs' });
+      } else if (i === 0) {
+        T(x + bw / 2, byy + 48, 'idle', { c: 1, size: 'sm', fill: C.faint });
+      } else if (dead) {
+        T(x + bw / 2, byy + 42, 'stopped', { c: 1, size: 'sm', fill: C.rose });
+        T(x + bw / 2, byy + 62, b.wrote.length + ' write' + (b.wrote.length === 1 ? '' : 's'),
+          { c: 1, size: 'xs', fill: C.mute });
+      } else {
+        T(x + bw / 2, byy + 42, 'holds ' + b.r1, { c: 1, size: 'sm', b: 1, fill: C.amber });
+        T(x + bw / 2, byy + 62, 'claim → ' + b.nxt, { c: 1, size: 'xs', fill: C.orange });
+      }
+      // the arrow from block to the position it just touched
+      if (ev) {
+        const tx = s5x(ev.nxt) + S5.W * S5G.cw / 2 - 2;
+        path(`M ${x + bw / 2} ${byy - 4} C ${x + bw / 2} ${byy - 40}, ${tx} ${by + 70}, ${tx} ${by + 32}`,
+             { stroke: quit ? C.rose : C.amber, sw: 1.5, op: ease(p) * .8,
+               dash: quit ? '4 3' : null, arrow: quit ? null : 'url(#arr)' });
+      }
+    });
+
+    // --- the protocol / summary card ---
+    panel(60, 392, 480, 120, i >= 4 ? 'THE RESULT' : 'THE LOOP, PER BLOCK');
+    if (i < 4) {
+      const lines = ['r2 = read(nxt)',
+                     'if atomicOr(bitmap, nxt) was already 1  →  stop',
+                     'write(nxt, r1);  r1 = r2;  nxt = nxt·P mod L'];
+      lines.forEach((s, k) => T(84, 442 + k * 21, s,
+        { size: 'sm', fill: k === 1 ? C.orange : C.ink, b: k === 1 }));
+    } else {
+      const wrote = ids.map(s => F.blocks[s].wrote.length);
+      const busiest = Math.max(...wrote), total = wrote.reduce((a, b) => a + b, 0);
+      const sum = [['positions moved', String(total)],
+                   ['busiest block', busiest + ' write' + (busiest === 1 ? '' : 's')],
+                   ['blocks that did nothing', String(wrote.filter(w => w === 0).length)],
+                   ['result correct', run.ok ? 'yes' : 'NO']];
+      sum.forEach((r, k) => {
+        T(84, 438 + k * 19, r[0], { size: 'sm', fill: C.mute });
+        T(516, 438 + k * 19, r[1], { size: 'sm', r: 1, b: 1,
+          fill: k === 3 ? (run.ok ? C.teal : C.rose) : C.ink });
+      });
+    }
+
+    panel(560, 392, 580, 120, 'WHY A BLOCK PER POSITION');
+    T(584, 442, 'cycles here: ' + S5.cycles.filter(c => c.length > 1).length +
+                '  →  plain cycle following gives 2-way parallelism.', { size: 'sm' });
+    T(584, 462, 'blocks here: 8  →  PTTWAC gives P·Q-way, and lets them', { size: 'sm' });
+    T(584, 482, 'overtake each other. Whoever gets there first wins the claim;', { size: 'sm' });
+    T(584, 502, 'the loser stops. The answer does not depend on who won.', { size: 'sm', b: 1, fill: C.orange });
+
+    if (mode === 'skew') T(1140, 78, 'skewed schedule', { r: 1, size: 'sm', b: 1, fill: C.orange });
+  },
+};
+
+// tick-through on step 3
+SCENE5.onEnter = function (i, dir) {
+  if (i === 3) SCENE5._tick = dir >= 0 ? 1 : (RUN[state.mode === 'skew' ? 'skew' : 'lock'].length - 1);
+};
+SCENE5.capFor = function (i, mode) {
+  if (i !== 3) return SCENE5.steps[i].cap;
+  const run = RUN[mode === 'skew' ? 'skew' : 'lock'];
+  const fi = Math.min(SCENE5._tick || 1, run.length - 1);
+  const F = run[fi];
+  const w = F.ev.filter(e => e.kind === 'wrote').length;
+  const q = F.ev.filter(e => e.kind === 'quit').length;
+  const more = fi < run.length - 1;
+  return '<b>Tick ' + fi + ' of ' + (run.length - 1) + '.</b> ' +
+    w + ' block' + (w === 1 ? '' : 's') + ' won a claim and wrote; ' +
+    q + ' found the position already claimed and <b>stopped</b>. ' +
+    (more ? 'Next tick with <b>Next</b>.'
+          : 'Nothing is left alive &mdash; the stage is done.');
+};
+SCENE5.stepsInStep = function (i, mode) {
+  if (i !== 3) return 1;
+  return RUN[mode === 'skew' ? 'skew' : 'lock'].length - 1;
+};
+
+// ====================================================================
+//  SCENE 6 -- what it costs, and how box transpose differs
+// ====================================================================
+const SCENE6 = {
+  id: 'cost', tab: '6 . The bill',
+  steps: [
+    { cap: 'Adding it up. Gomez-Luna gets its parallelism from <b>factoring the shape</b> ' +
+           'so the fine work lands on chip, and from <b>starting a block at every position</b> ' +
+           'when it cannot. Both have a price, and both prices are visible in this repo\'s ' +
+           'own measurements.' },
+    { cap: '<span class="hl-pad">The padding.</span> In two dimensions it is nothing &mdash; ' +
+           '0.03% on their own example. Generalised to N dimensions it <b>compounds</b>, ' +
+           'because the swap network can touch the same axis more than once and each visit ' +
+           'pads again. <code>n_dims/gomezluna/decomposition.py</code> carries a hard cap for ' +
+           'exactly this: one adversarial rank-6 case turned a 20 GB tensor into a ' +
+           '<b>720 GB</b> allocation request. <b>No committed sweep in this repo actually ' +
+           'triggers padding</b> &mdash; every shape sampled factors &mdash; so that number is ' +
+           'the documented guard case, not a measurement.' },
+    { cap: '<span class="hl-pt">The bitmap.</span> This one <b>is</b> measured, and it is the ' +
+           'bigger cost in practice. PTTWAC needs a bit per grid position, zeroed before every ' +
+           'stage. On the worst case in <code>raw_data/</code> that came to <b>268 MB of ' +
+           'scratch on a 1.07 GB tensor</b>. Box transpose\'s auxiliary memory across the same ' +
+           'sweeps never left the range <b>8 B to 10.9 kB</b>.' },
+    { cap: 'And the structural difference. Both methods decompose into the same primitive ' +
+           '&mdash; scene 3 showed that every Gomez-Luna stage is an adjacent box swap. They ' +
+           'part company on <b>where the parallelism comes from</b>. Gomez-Luna manufactures ' +
+           'it by reshaping a 2-D problem. Box transpose already has it, for free, in the ' +
+           'axes that a 2-D method does not have.' },
+  ],
+  draw(i, p) {
+    if (i === 0) {
+      panel(60, 56, 1080, 200, 'THE TWO MOVES, AND WHAT EACH COSTS');
+      const rows = [
+        ['factor the shape so the fine stage fits on chip', 'BS', C.teal,
+         'needs a factor in [24,159) — or pad until there is one'],
+        ['start a block at every position, let them race', 'PTTWAC', C.orange,
+         'needs a claim bitmap, and reads that get thrown away'],
+      ];
+      rows.forEach((r, k) => {
+        const y = 100 + k * 76;
+        cell(88, y, 130, 40, r[1], { fill: k ? C.orangeF : C.tealF, stroke: r[2], sw: 2,
+                                      tb: 1, tfill: r[2], rx: 5 });
+        T(240, y + 16, r[0], { size: 'sm', b: 1 });
+        T(240, y + 36, r[3], { size: 'sm', fill: C.mute });
+      });
+      panel(60, 276, 1080, 180, 'MEASURED, ACROSS raw_data/');
+      const st = [
+        ['cases where both methods reported', String(MEASURED.rows)],
+        ['box transpose faster', MEASURED.boxWins + ' of ' + MEASURED.rows],
+        ['median  gl_apply_ms / box_ms', MEASURED.medianRatio + ' ×'],
+      ];
+      st.forEach((r, k) => {
+        const y = 322 + k * 34;
+        T(88, y, r[0], { size: 'sm', fill: C.mute });
+        T(1112, y, r[1], { size: 'sm', r: 1, b: 1, fill: k ? C.blue : C.ink });
+      });
+      T(88, 430, 'experiments/hard_perms + experiments/dpost_sweep, RTX 2070.', { size: 'xs' });
+      return;
+    }
+    if (i === 1) {
+      panel(60, 56, 1080, 400, 'PADDING');
+      const bars = [
+        { l: '2-D, their example  (6203 × 6607)', v: 0.0003, note: '+12,811 elements — 0.03%', c: C.teal },
+        { l: 'N-D worst documented case', v: 36, note: '20 GB tensor → 720 GB request (guarded, never run)', c: C.rose },
+      ];
+      bars.forEach((b, k) => {
+        const y = 120 + k * 130;
+        T(88, y, b.l, { size: 'sm', b: 1 });
+        box(88, y + 14, 1000, 34, { fill: C.slateF, stroke: C.hair, rx: 4 });
+        const w = Math.max(3, Math.min(1000, Math.log10(1 + b.v * 30) / Math.log10(1 + 36 * 30) * 1000)) * ease(p);
+        box(88, y + 14, w, 34, { fill: k ? C.roseF : C.tealF, stroke: b.c, sw: 1.6, rx: 4 });
+        T(88, y + 72, b.note, { size: 'sm', fill: b.c });
+      });
+      T(88, 384, 'log scale. Algorithm 5 pads each dimension independently and unconditionally;', { size: 'sm', fill: C.mute });
+      T(88, 406, 'in N-D the swap network can revisit an axis, and each visit pads again.', { size: 'sm', fill: C.mute });
+      T(88, 436, 'n_dims/gomezluna/decomposition.py  ·  MAX_PAD_ELEMENTS', { size: 'xs' });
+      return;
+    }
+    if (i === 2) {
+      panel(60, 56, 1080, 400, 'AUXILIARY MEMORY — THE WORST CASE IN raw_data/');
+      T(88, 100, 'shape ' + MEASURED.worst.shape + '  ·  perm ' + MEASURED.worst.perm,
+        { size: 'sm' });
+      const scale = 1073.7, x0 = 88, W = 1000;
+      const bars = [
+        { l: 'the tensor itself', v: MEASURED.worst.tensorMB, c: C.faint, f: C.slateF, t: '1073.7 MB' },
+        { l: 'Gomez-Luna claim bitmap', v: MEASURED.worst.glAuxMB, c: C.orange, f: C.orangeF, t: '268.4 MB' },
+        { l: 'box transpose cycle arrays', v: MEASURED.boxAuxHi / 1e6, c: C.blue, f: C.blueF, t: '≤ 10.9 kB' },
+      ];
+      bars.forEach((b, k) => {
+        const y = 140 + k * 74;
+        T(88, y, b.l, { size: 'sm', b: 1 });
+        box(x0, y + 12, W, 30, { fill: C.panel, stroke: C.hair, rx: 4 });
+        const w = Math.max(2, b.v / scale * W) * ease(p);
+        box(x0, y + 12, w, 30, { fill: b.f, stroke: b.c, sw: 1.6, rx: 4 });
+        const wide = w > W - 130;
+        T(wide ? x0 + w - 12 : x0 + Math.max(w + 12, 60), y + 31, b.t,
+          { size: 'sm', b: 1, fill: b.c, r: wide });
+      });
+      line(88, 372, 1088, 372, { stroke: C.hair });
+      T(88, 400, 'runtime on this case:', { size: 'sm', fill: C.mute });
+      const t = [['Gomez-Luna', MEASURED.worst.glMs + ' ms', C.orange],
+                 ['box transpose', MEASURED.worst.boxMs + ' ms', C.blue],
+                 ['.contiguous()', MEASURED.worst.contMs + ' ms  (+1 GB)', C.faint]];
+      t.forEach((r, k) => {
+        T(330 + k * 270, 400, r[0], { size: 'sm', fill: r[2] });
+        T(330 + k * 270, 424, r[1], { size: 'sm', b: 1, fill: r[2] });
+      });
+      T(88, 448, 'bitmap is zeroed before every stage, so it is paid per stage, not once.', { size: 'xs' });
+      return;
+    }
+    // i === 3
+    panel(60, 56, 530, 400, 'GOMEZ-LUNA');
+    const a = [
+      ['decomposition', 'four fixed templates (2.1, 2.2, 3.1, 3.2)'],
+      ['chosen by', 'which of m·N, M·n fits in LM_size'],
+      ['runs a swap with', 'BS on chip, else PTTWAC + bitmap'],
+      ['parallelism from', 'factoring the shape, and racing blocks'],
+      ['needs', 'a factor in [24, 159), or padding'],
+      ['aux memory', 'bitmap (MB) + padding'],
+      ['rank', '2-D. N-D is this repo’s extension.'],
+    ];
+    a.forEach((r, k) => {
+      const y = 100 + k * 50;
+      T(84, y, r[0], { size: 'xs' });
+      T(84, y + 20, r[1], { size: 'sm' });
+    });
+    panel(610, 56, 530, 400, 'BOX TRANSPOSE');
+    const b2 = [
+      ['decomposition', 'adjacent box swaps — the same primitive'],
+      ['chosen by', 'Dijkstra over axis orderings, by cost'],
+      ['runs a swap with', 'direct cycle following, one register'],
+      ['parallelism from', 'D_pre × cycles × D_post — the other axes'],
+      ['needs', 'nothing of the shape'],
+      ['aux memory', 'cycle start/length arrays (kB)'],
+      ['rank', 'N-D natively'],
+    ];
+    b2.forEach((r, k) => {
+      const y = 100 + k * 50, hot = k === 3 || k === 5;
+      T(634, y, r[0], { size: 'xs' });
+      T(634, y + 20, r[1], { size: 'sm', b: hot, fill: hot ? C.blue : C.ink });
+    });
+    T(600, 486, 'Both skip fixed points differently: box transpose skips gcd(rows−1, cols−1)+1 cells outright.',
+      { c: 1, size: 'xs' });
+  },
+};
+
+// ====================================================================
+//  driver
+// ====================================================================
+const SCENES = [SCENE1, SCENE2, SCENE3, SCENE4, SCENE5, SCENE6];
+const state = { scene: 0, step: 0, p: 1, mode: 'lock' };
+
+const svg = document.getElementById('stage');
+const root = document.getElementById('root');
+const capEl = document.getElementById('caption');
+const tabsEl = document.getElementById('tabs');
+const dotsEl = document.getElementById('dots');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const btnAlt = document.getElementById('btnAlt');
+const whereEl = document.getElementById('where');
+
+SCENES.forEach((s, k) => {
+  const b = document.createElement('button');
+  b.className = 'tab'; b.textContent = s.tab;
+  b.onclick = () => { state.scene = k; state.step = 0; state.mode = 'lock';
+                      if (s.onEnter) s.onEnter(0, 1); animate(); };
+  tabsEl.appendChild(b);
+});
+
+function render() {
+  const sc = SCENES[state.scene];
+  while (root.firstChild) root.removeChild(root.firstChild);
+  g = root;
+  sc.draw(state.step, state.p, state.mode);
+
+  capEl.innerHTML = sc.capFor ? sc.capFor(state.step, state.mode)
+                              : sc.steps[state.step].cap;
+
+  [...tabsEl.children].forEach((b, k) => b.classList.toggle('on', k === state.scene));
+  while (dotsEl.firstChild) dotsEl.removeChild(dotsEl.firstChild);
+  sc.steps.forEach((_, k) => {
+    const d = document.createElement('span');
+    d.className = 'dot' + (k === state.step ? ' on' : k < state.step ? ' past' : '');
+    dotsEl.appendChild(d);
+  });
+
+  const sub = sc.stepsInStep ? sc.stepsInStep(state.step, state.mode) : 1;
+  const atEnd = state.scene === SCENES.length - 1 &&
+                state.step === sc.steps.length - 1 &&
+                (sub === 1 || (SCENE5._tick || 1) >= sub);
+  btnPrev.disabled = state.scene === 0 && state.step === 0;
+  btnNext.disabled = atEnd;
+  btnAlt.hidden = !(sc === SCENE5 && state.step >= 3);
+  btnAlt.textContent = state.mode === 'skew' ? 'Back to the lockstep schedule'
+                                             : 'Re-run with a skewed schedule';
+  whereEl.textContent = sc.tab.replace(/^\d+ \. /, '') +
+    '   —   step ' + (state.step + 1) + ' / ' + sc.steps.length;
+}
+
+let raf = null;
+function animate(dur) {
+  if (raf) cancelAnimationFrame(raf);
+  const t0 = performance.now(), D = dur == null ? 460 : dur;
+  const tick = now => {
+    state.p = Math.min(1, (now - t0) / D);
+    render();
+    if (state.p < 1) raf = requestAnimationFrame(tick); else raf = null;
+  };
+  raf = requestAnimationFrame(tick);
+}
+
+function go(dir) {
+  const sc = SCENES[state.scene];
+  const sub = sc.stepsInStep ? sc.stepsInStep(state.step, state.mode) : 1;
+  // sub-steps inside a step (the PTTWAC ticks)
+  if (sub > 1) {
+    const t = SCENE5._tick || 1;
+    if (dir > 0 && t < sub) { SCENE5._tick = t + 1; animate(320); return; }
+    if (dir < 0 && t > 1)   { SCENE5._tick = t - 1; animate(320); return; }
+  }
+  let ns = state.scene, st = state.step + dir;
+  if (st < 0) { ns--; if (ns < 0) return; st = SCENES[ns].steps.length - 1; }
+  if (st >= SCENES[ns].steps.length) { ns++; if (ns >= SCENES.length) return; st = 0; }
+  state.scene = ns; state.step = st;
+  const nsc = SCENES[ns];
+  if (nsc.onEnter) nsc.onEnter(st, dir);
+  animate();
+}
+
+btnNext.onclick = () => go(1);
+btnPrev.onclick = () => go(-1);
+btnReset.onclick = () => { state.step = 0; state.mode = 'lock';
+                           if (SCENES[state.scene].onEnter) SCENES[state.scene].onEnter(0, 1);
+                           animate(); };
+btnAlt.onclick = () => { state.mode = state.mode === 'skew' ? 'lock' : 'skew';
+                         SCENE5._tick = RUN[state.mode === 'skew' ? 'skew' : 'lock'].length - 1;
+                         animate(); };
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+});
+
+animate(1);
+</script>
+</body>
+</html>

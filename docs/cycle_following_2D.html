@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Walking the Cycles</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+
+  :root {
+    --ground:#eceff2; --surface:#fff; --surface-2:#f5f7f9;
+    --ink:#0f151a; --ink-2:#4a5760; --ink-3:#7a8792;
+    --line:#d6dde3; --line-2:#bcc6ce;
+    --rows:#2a7fc9; --cols:#12946c;
+    --mid:#0f6f9e; --mid-bg:#e4f0f5;
+    --stay:#0f766e; --stay-bg:#cdeae6;
+    --carry:#b45309; --carry-bg:#fbe8cf;
+    --cell:#eef1f4;
+    --shadow:0 1px 2px rgba(15,21,26,.06), 0 10px 28px rgba(15,21,26,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:#0b1014; --surface:#141c22; --surface-2:#1a232a;
+      --ink:#e9eff3; --ink-2:#a5b3bd; --ink-3:#74828c;
+      --line:#283239; --line-2:#3a464f;
+      --rows:#5aa9ec; --cols:#33c396;
+      --mid:#63b8dd; --mid-bg:#15303d;
+      --stay:#5ed6c4; --stay-bg:#10403b;
+      --carry:#f0a94e; --carry-bg:#3d2a10;
+      --cell:#1e272e;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:#0b1014; --surface:#141c22; --surface-2:#1a232a;
+    --ink:#e9eff3; --ink-2:#a5b3bd; --ink-3:#74828c;
+    --line:#283239; --line-2:#3a464f;
+    --rows:#5aa9ec; --cols:#33c396;
+    --mid:#63b8dd; --mid-bg:#15303d;
+    --stay:#5ed6c4; --stay-bg:#10403b;
+    --carry:#f0a94e; --carry-bg:#3d2a10;
+    --cell:#1e272e;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.35);
+  }
+
+  body { background:var(--ground); color:var(--ink);
+         font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1280px; margin:0 auto; padding-inline:16px; padding-block:26px 56px;
+          display:flex; flex-direction:column; gap:16px; }
+  h1 { font-size:clamp(23px,5vw,32px); font-weight:700; letter-spacing:-.02em; margin:0; text-wrap:balance; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+          font-variant-numeric:tabular-nums; }
+  .ptitle { font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-3); }
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+           box-shadow:var(--shadow); padding:15px; display:flex; flex-direction:column; gap:12px; min-width:0; }
+
+  /* controls */
+  .ctlrow { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)) auto; gap:14px; align-items:end; }
+  @media (max-width:760px){ .ctlrow { grid-template-columns:1fr; } }
+  .ctl { display:flex; flex-direction:column; gap:4px; }
+  .ctl-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .ctl-name { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; font-weight:700; }
+  .ctl-val { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:19px; font-weight:600; }
+  .c-rows .ctl-name, .c-rows .ctl-val { color:var(--rows); }
+  .c-cols .ctl-name, .c-cols .ctl-val { color:var(--cols); }
+  .c-rows input { accent-color:var(--rows); } .c-cols input { accent-color:var(--cols); }
+  input[type=range] { width:100%; margin:0; }
+  .btns { display:flex; gap:7px; flex-wrap:wrap; }
+  .btn { font:inherit; font-size:12.5px; font-weight:500; padding:7px 14px; border-radius:7px;
+         white-space:nowrap; border:1px solid var(--line-2); background:var(--surface);
+         color:var(--ink); cursor:pointer; }
+  .btn:hover { background:var(--surface-2); }
+  .btn.primary { background:var(--ink); color:var(--surface); border-color:var(--ink); }
+  .btn[aria-pressed="true"] { background:var(--mid-bg); border-color:var(--mid); color:var(--mid); }
+  .btn:disabled { opacity:.4; cursor:default; }
+
+
+  .split { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:start; }
+  @media (max-width:1000px){ .split { grid-template-columns:1fr; } }
+  .graphs { display:flex; flex-wrap:wrap; gap:10px; align-content:flex-start; }
+  .graphs svg { overflow:visible; }
+  .gnode { fill:var(--cell); stroke:var(--line-2); stroke-width:1.6; }
+  .gnode.fixed { fill:var(--stay-bg); stroke:var(--stay); }
+  .gnode.done { fill:var(--mid-bg); stroke:var(--mid); }
+  .gnode.here { fill:var(--carry-bg); stroke:var(--carry); stroke-width:2.4; }
+  .glabel { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9px;
+            fill:var(--ink-2); text-anchor:middle; dominant-baseline:central; }
+  .gedge { fill:none; stroke:var(--ink-3); stroke-width:1.6; opacity:.75; }
+  .gedge.act { stroke:var(--carry); opacity:1; stroke-width:2; }
+  .gedge.sf  { stroke:var(--stay); }
+  .gwrap { padding:4px; border-radius:9px; border:1px solid transparent; }
+  .gwrap.active { border-color:var(--carry); background:var(--carry-bg); }
+
+  /* the matrix */
+  .board { position:relative; align-self:start; margin-left:30px; margin-top:24px; }
+  .axis-tag { position:absolute; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+              font-size:11px; font-weight:700; letter-spacing:.02em; }
+  .tag-rows { color:var(--rows); left:-8px; top:50%; white-space:nowrap;
+              transform:translateY(-50%) translateX(-50%) rotate(-90deg); }
+  .tag-cols { color:var(--cols); top:-19px; left:50%; transform:translateX(-50%); white-space:nowrap; }
+  .grid { position:relative; }
+  .cell { position:absolute; border-radius:7px; background:var(--cell); border:1px solid var(--line);
+          display:grid; place-items:center; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+          font-weight:600; transition:background-color .25s, border-color .25s, box-shadow .25s, color .25s; }
+  .cell .v { line-height:1; }
+  .cell .ix { position:absolute; top:2px; left:4px; font-size:9px; font-weight:500; color:var(--ink-3); }
+  .cell.fixed { background:var(--stay-bg); border-color:var(--stay); color:var(--stay); }
+  .cell.oncycle { border-color:var(--mid); }
+  .cell.done { background:var(--mid-bg); }
+  .cell.target { box-shadow:0 0 0 3px var(--carry); z-index:2; }
+  .carry { position:absolute; border-radius:7px; background:var(--carry-bg); border:2px solid var(--carry);
+           color:var(--carry); display:grid; place-items:center; z-index:5; pointer-events:none;
+           font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-weight:700;
+           box-shadow:0 6px 16px rgba(0,0,0,.18); }
+  @media (prefers-reduced-motion: reduce){ .carry { transition:none !important; } .cell { transition:none; } }
+
+
+  .status { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px;
+            color:var(--ink-2); min-height:38px; padding:9px 11px; border-radius:8px;
+            background:var(--surface-2); border:1px solid var(--line); }
+  .status b { color:var(--ink); }
+  .status .cr { color:var(--carry); font-weight:700; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 15px; font-size:12px; color:var(--ink-3); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { width:13px; height:13px; border-radius:4px; display:block; border:1px solid var(--line-2); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Walking the cycles</h1>
+
+  <div class="panel">
+    <div class="ctlrow">
+      <div class="ctl c-rows">
+        <div class="ctl-head"><span class="ctl-name">d_left</span><span class="ctl-val" id="v-rows">4</span></div>
+        <input type="range" id="s-rows" min="2" max="8" step="1" value="4" aria-label="d_left">
+      </div>
+      <div class="ctl c-cols">
+        <div class="ctl-head"><span class="ctl-name">d_right</span><span class="ctl-val" id="v-cols">4</span></div>
+        <input type="range" id="s-cols" min="2" max="8" step="1" value="4" aria-label="d_right">
+      </div>
+      <div class="btns">
+        <button class="btn" id="b-lock" aria-pressed="true">Keep square</button>
+        <button class="btn primary" id="b-play">Play</button>
+        <button class="btn" id="b-step">Step</button>
+        <button class="btn" id="b-reset">Reset</button>
+      </div>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="split">
+  <div class="panel">
+    <span class="ptitle">the d_mid matrix, transposed in place</span>
+    <div class="board" id="board">
+      <span class="axis-tag tag-cols">d_right &rarr;</span>
+      <span class="axis-tag tag-rows">d_left</span>
+      <div class="grid" id="grid"></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--carry-bg);border-color:var(--carry)"></i>the register &mdash; one value in flight</span>
+      <span><i style="background:var(--stay-bg);border-color:var(--stay)"></i>fixed point &mdash; never written</span>
+      <span><i style="background:var(--mid-bg);border-color:var(--mid)"></i>already placed</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <span class="ptitle">the same thing as cycles <span id="cyc-count" class="mono"></span></span>
+    <div class="graphs" id="graphs"></div>
+  </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var R = 4, C = 4;
+  var lockSquare = true;
+  var CELL = 46, GAP = 6;
+
+  var el = function (id) { return document.getElementById(id); };
+  function gcd(a, b) { while (b) { var t = a % b; a = b; b = t; } return a; }
+
+  // A cell at linear position p lands at (p mod C)*R + floor(p / C).
+  function dest(p) { return (p % C) * R + Math.floor(p / C); }
+
+  var cells = [], carryEl = null, cycles = [], plan = [], at = 0, timer = null, values = [];
+
+  function computeCycles() {
+    var N = R * C, seen = new Array(N).fill(false), out = [];
+    for (var s = 0; s < N; s++) {
+      if (seen[s]) continue;
+      var cur = s, cyc = [];
+      while (!seen[cur]) { seen[cur] = true; cyc.push(cur); cur = dest(cur); }
+      out.push(cyc);
+    }
+    return out;
+  }
+
+  // Every hop of every non-trivial cycle, precomputed so Step and Play share
+  // one timeline. A hop is: the register writes into `to`, and picks up
+  // whatever `to` held.
+  function buildPlan() {
+    plan = [];
+    cycles.forEach(function (cyc, ci) {
+      if (cyc.length < 2) return;
+      plan.push({ kind: "pick", cycle: ci, at: cyc[0] });
+      var q = cyc[0];
+      for (var k = 0; k < cyc.length; k++) {
+        var nx = dest(q);
+        plan.push({ kind: "hop", cycle: ci, from: q, to: nx, last: k === cyc.length - 1 });
+        q = nx;
+      }
+      plan.push({ kind: "drop", cycle: ci });
+    });
+  }
+
+  function xy(p) {
+    return { x: (p % C) * (CELL + GAP), y: Math.floor(p / C) * (CELL + GAP) };
+  }
+
+  function build() {
+    var g = el("grid"), N = R * C;
+    g.innerHTML = "";
+    cells = [];
+    values = [];
+    for (var p = 0; p < N; p++) values.push(p);
+
+    for (var i = 0; i < N; i++) {
+      var d = document.createElement("div");
+      d.className = "cell";
+      var pos = xy(i);
+      d.style.width = CELL + "px"; d.style.height = CELL + "px";
+      d.style.left = pos.x + "px"; d.style.top = pos.y + "px";
+      d.style.fontSize = (CELL > 38 ? 15 : 12) + "px";
+      d.innerHTML = '<span class="ix"></span><span class="v"></span>';
+      d.querySelector(".ix").textContent = i;
+      g.appendChild(d);
+      cells.push(d);
+    }
+    g.style.width = (C * (CELL + GAP) - GAP) + "px";
+    g.style.height = (R * (CELL + GAP) - GAP) + "px";
+
+    carryEl = document.createElement("div");
+    carryEl.className = "carry";
+    carryEl.style.width = CELL + "px"; carryEl.style.height = CELL + "px";
+    carryEl.style.fontSize = (CELL > 38 ? 15 : 12) + "px";
+    carryEl.style.opacity = "0";
+    g.appendChild(carryEl);
+
+    cycles = computeCycles();
+    buildPlan();
+    at = 0;
+    renderCells();
+    renderGraphs();
+    setStatus('Press <b>Play</b>. The register picks up one value and walks its cycle, ' +
+              'dropping each value where it belongs and carrying away whatever it displaced.');
+  }
+
+
+  // ------------------------------------------------- the cycles as diagrams
+  // Same information as the grid, drawn the way permutations are usually
+  // drawn: nodes on a ring, one arrow per hop. A fixed point is a self loop.
+  var NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function renderGraphs() {
+    var box = el("graphs");
+    if (!box) return;
+    box.innerHTML = "";
+    var placed = placedSoFar();
+    var activeCycle = at < plan.length ? plan[at].cycle : -1;
+    var hereNode = null;
+    for (var i = at - 1; i >= 0; i--) {
+      if (plan[i].kind === "hop") { hereNode = plan[i].to; break; }
+      if (plan[i].kind === "pick") { hereNode = plan[i].at; break; }
+    }
+    if (at >= plan.length) hereNode = null;
+
+    cycles.forEach(function (cyc, ci) {
+      var L = cyc.length;
+      var nodeR = Math.max(5, Math.min(13, 15 - L * 0.22));
+      var ringR = L === 1 ? 0
+                : L === 2 ? nodeR * 2.7
+                : Math.max(nodeR * 2.3, L * (2 * nodeR + 7) / (2 * Math.PI));
+      var pad = nodeR + (L === 1 ? 16 : 7);
+      var W = 2 * (ringR + pad), H = W;
+
+      var wrap = document.createElement("div");
+      wrap.className = "gwrap" + (ci === activeCycle ? " active" : "");
+      var svg = svgEl("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H });
+
+      var mid = W / 2;
+      var act = ci === activeCycle;
+      var mk = "ah" + ci + "_" + Math.round(nodeR * 10);
+      var defs = svgEl("defs");
+      var marker = svgEl("marker", {
+        id: mk, markerWidth: 6, markerHeight: 5, refX: 5.4, refY: 2.5, orient: "auto"
+      });
+      marker.appendChild(svgEl("polygon", {
+        points: "0 0, 6 2.5, 0 5",
+        fill: L === 1 ? "var(--stay)" : (act ? "var(--carry)" : "var(--ink-3)")
+      }));
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+
+      function pt(k) {
+        var a = -Math.PI / 2 + (2 * Math.PI * k) / L;
+        return { x: mid + ringR * Math.cos(a), y: mid + ringR * Math.sin(a) };
+      }
+
+      if (L === 1) {
+        // self loop: this slot is already where it belongs
+        svg.appendChild(svgEl("path", {
+          d: "M " + (mid - nodeR * 0.6) + " " + (mid - nodeR * 0.8) +
+             " a " + nodeR * 1.15 + " " + nodeR * 1.15 + " 0 1 1 " + (nodeR * 1.2) + " 0",
+          "class": "gedge sf", "marker-end": "url(#" + mk + ")"
+        }));
+      } else {
+        for (var k = 0; k < L; k++) {
+          var p0 = pt(k), p1 = pt((k + 1) % L);
+          var dx = p1.x - p0.x, dy = p1.y - p0.y, len = Math.hypot(dx, dy) || 1;
+          var bow = L === 2 ? 0.34 : 0.17;
+          // control point, bowed to one side of the chord
+          var cx = (p0.x + p1.x) / 2 - dy * bow, cy = (p0.y + p1.y) / 2 + dx * bow;
+          // leave and arrive along the curve's own tangent, so the two arcs of
+          // a swap exit opposite sides of each node
+          var s0x = cx - p0.x, s0y = cy - p0.y, s0 = Math.hypot(s0x, s0y) || 1;
+          var e0x = cx - p1.x, e0y = cy - p1.y, e0 = Math.hypot(e0x, e0y) || 1;
+          var sx = p0.x + s0x / s0 * (nodeR + 1.5), sy = p0.y + s0y / s0 * (nodeR + 1.5);
+          var ex = p1.x + e0x / e0 * (nodeR + 4.5), ey = p1.y + e0y / e0 * (nodeR + 4.5);
+          svg.appendChild(svgEl("path", {
+            d: "M " + sx + " " + sy + " Q " + cx + " " + cy + " " + ex + " " + ey,
+            "class": "gedge" + (act ? " act" : ""), "marker-end": "url(#" + mk + ")"
+          }));
+        }
+      }
+
+      cyc.forEach(function (slot, k) {
+        var p0 = L === 1 ? { x: mid, y: mid } : pt(k);
+        var cls = "gnode" + (L === 1 ? " fixed" : (placed[slot] ? " done" : "")) +
+                  (slot === hereNode ? " here" : "");
+        svg.appendChild(svgEl("circle", { cx: p0.x, cy: p0.y, r: nodeR, "class": cls }));
+        if (nodeR >= 8) {
+          var t = svgEl("text", { x: p0.x, y: p0.y, "class": "glabel" });
+          t.textContent = slot;
+          svg.appendChild(t);
+        }
+      });
+
+      wrap.appendChild(svg);
+      box.appendChild(wrap);
+    });
+
+    var nontrivial = cycles.filter(function (c) { return c.length > 1; }).length;
+    var longest = cycles.reduce(function (m, c) { return Math.max(m, c.length); }, 0);
+    el("cyc-count").textContent =
+      "\u2014 " + nontrivial + " to walk, " + (cycles.length - nontrivial) +
+      " self loops, longest " + longest;
+  }
+
+  function renderCells() {
+    var fixedSet = {};
+    cycles.forEach(function (c) { if (c.length === 1) fixedSet[c[0]] = true; });
+    var activeCycle = at < plan.length ? plan[at].cycle : -1;
+    var placed = placedSoFar();
+    cells.forEach(function (d, i) {
+      d.className = "cell" +
+        (fixedSet[i] ? " fixed" : "") +
+        (activeCycle >= 0 && cycles[activeCycle].indexOf(i) >= 0 ? " oncycle" : "") +
+        (placed[i] ? " done" : "");
+      d.querySelector(".v").textContent = values[i];
+    });
+  }
+
+  // which positions already hold their final value
+  function placedSoFar() {
+    var done = {};
+    cycles.forEach(function (c) { if (c.length === 1) done[c[0]] = true; });
+    for (var i = 0; i < at && i < plan.length; i++) {
+      var st = plan[i];
+      if (st.kind === "hop") done[st.to] = true;
+    }
+    return done;
+  }
+
+  function moveCarryTo(p, show) {
+    var pos = xy(p);
+    carryEl.style.transition = "transform .5s cubic-bezier(.4,0,.2,1), opacity .2s";
+    carryEl.style.transform = "translate(" + pos.x + "px," + pos.y + "px)";
+    if (show !== undefined) carryEl.style.opacity = show ? "1" : "0";
+  }
+
+  var held = null;
+  function apply(st) {
+    if (st.kind === "pick") {
+      held = values[st.at];
+      carryEl.textContent = held;
+      var pos = xy(st.at);
+      carryEl.style.transition = "none";
+      carryEl.style.transform = "translate(" + pos.x + "px," + pos.y + "px)";
+      void carryEl.offsetWidth;
+      carryEl.style.opacity = "1";
+      setStatus('New cycle. The register picks up <span class="cr">' + held +
+                '</span> from slot <b>' + st.at + '</b>. That slot is now free to be overwritten.');
+    } else if (st.kind === "hop") {
+      var displaced = values[st.to];
+      values[st.to] = held;
+      held = displaced;
+      moveCarryTo(st.to, true);
+      carryEl.textContent = held;
+      setStatus('Write into slot <b>' + st.to + '</b>. It held <span class="cr">' + displaced +
+                '</span>, so the register carries that away. ' +
+                (st.last ? 'The cycle has closed — back where it started.' : ''));
+    } else {
+      carryEl.style.opacity = "0";
+      held = null;
+      setStatus('Cycle finished. Every value in it is home, and the register is empty again. ' +
+                'Peak extra memory so far: <b>one value</b>.');
+    }
+    renderCells();
+    renderGraphs();
+  }
+
+  function step() {
+    if (at >= plan.length) { stop(); setStatus('Done. The whole matrix is transposed, in place, ' +
+      'having never held more than <b>one</b> value outside the array.'); return false; }
+    apply(plan[at]); at++;
+    return true;
+  }
+
+  function play() {
+    if (timer) { stop(); return; }
+    el("b-play").textContent = "Pause";
+    timer = setInterval(function () { if (!step()) stop(); }, 620);
+  }
+  function stop() { clearInterval(timer); timer = null; el("b-play").textContent = "Play"; }
+
+  function setStatus(h) { el("status").innerHTML = h; }
+
+  function sizeCells() {
+    var avail = Math.min(620, (el("board").parentNode.clientWidth || 560) - 78);
+    CELL = Math.max(22, Math.min(52, Math.floor((avail - (C - 1) * GAP) / C)));
+  }
+
+  function rebuild() {
+    stop();
+    sizeCells();
+    build();
+  }
+
+  ["rows", "cols"].forEach(function (k) {
+    el("s-" + k).addEventListener("input", function (e) {
+      var val = parseInt(e.target.value, 10);
+      if (k === "rows") R = val; else C = val;
+      if (lockSquare) {
+        R = C = val;
+        el("s-rows").value = val; el("s-cols").value = val;
+        el("v-rows").textContent = val; el("v-cols").textContent = val;
+      } else {
+        el("v-" + k).textContent = val;
+      }
+      rebuild();
+    });
+  });
+  el("b-lock").addEventListener("click", function () {
+    lockSquare = !lockSquare;
+    this.setAttribute("aria-pressed", String(lockSquare));
+    if (lockSquare) {
+      C = R;
+      el("s-cols").value = C; el("v-cols").textContent = C;
+      rebuild();
+    }
+  });
+  el("b-play").addEventListener("click", play);
+  el("b-step").addEventListener("click", function () { stop(); step(); });
+  el("b-reset").addEventListener("click", rebuild);
+  window.addEventListener("resize", function () {
+    var old = CELL; sizeCells();
+    if (old !== CELL) { var keep = at; build(); at = 0; for (var i = 0; i < keep; i++) step(); }
+  });
+
+  rebuild();
+})();
+</script>
+</body>
+</html>
