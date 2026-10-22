@@ -12,12 +12,12 @@ dependencies = ["torch"]
 [project.optional-dependencies]
 calibration = ["numpy", "pytest"]
 
-# src/ holds the package contents directly, with no nested box_transpose/ dir.
-# This maps that directory onto the import name, so `import box_transpose`
+# src/ holds the package contents directly, with no nested box_following/ dir.
+# This maps that directory onto the import name, so `import box_following`
 # works even though nothing on disk is called that.
 [tool.setuptools]
-package-dir = { box_transpose = "src" }
-packages = ["box_transpose", "box_transpose._kernels"]
+package-dir = { box_following = "src" }
+packages = ["box_following", "box_following._kernels"]
 
 [tool.setuptools.package-data]
-box_transpose = ["_kernels/*.cu", "_kernels/*.cpp", "_kernels/*.cuh"]
+box_following = ["_kernels/*.cu", "_kernels/*.cpp", "_kernels/*.cuh"]

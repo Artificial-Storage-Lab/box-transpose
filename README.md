@@ -65,12 +65,12 @@ two, and every call after that is instant.
 ## Use
 
 ```python
-import torch, box_transpose as bt
+import torch, box_following as bf
 
 x = torch.arange(2 * 3 * 4, dtype=torch.float32, device="cuda").reshape(2, 3, 4)
 
-plan = bt.plan_permute(x.shape, (2, 1, 0))   # search for a decomposition
-bt.apply(x, bt.profile(plan))                 # x is now permuted, in place
+plan = bf.plan_permute(x.shape, (2, 1, 0))   # search for a decomposition
+bf.apply(x, bf.profile(plan))                 # x is now permuted, in place
 ```
 
 `plan_permute` returns `None` if no box-following decomposition exists for that
@@ -91,7 +91,7 @@ divisible by 4 and the vectorised kernel is used, `scalar` otherwise.
 ## Layout
 
 ```
-src/                 the box_transpose package (see note below)
+src/                 the box_following package (see note below)
   _plan.py          Dijkstra planner and cost model. Standard library only.
   _transpose.py     profile() / apply() — uploads cycles, drives the kernel.
   _kernels/
@@ -106,10 +106,10 @@ paper/              LaTeX source, and the scripts that turn raw_data/ into its
                     numbers. `cd paper && make verify` (see paper/README.md)
 ```
 
-The package lives directly in `src/` with no nested `box_transpose/` directory.
+The package lives directly in `src/` with no nested `box_following/` directory.
 Python would normally take the import name from the directory name, so
 `pyproject.toml` maps it explicitly with
-`package-dir = { box_transpose = "src" }`. The import is `box_transpose`
+`package-dir = { box_following = "src" }`. The import is `box_following`
 regardless of what the folder is called — but if you move or rename `src/`,
 update that mapping too or the package stops resolving.
 

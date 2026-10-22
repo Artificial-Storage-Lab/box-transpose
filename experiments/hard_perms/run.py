@@ -106,7 +106,7 @@ def main() -> int:
         return 0
 
     import torch
-    import box_transpose as bt
+    import box_following as bf
     ittpd = load_ittpd()
     DEV = torch.device("cuda")
     gpu = torch.cuda.get_device_name(0)
@@ -132,16 +132,16 @@ def main() -> int:
             src.contiguous()
             row["contiguous_ms"] = round(timed(lambda: src.contiguous()), 3)
 
-            plan = bt.plan_permute(shape, perm, materialize=False, max_steps=MAX_STEPS)
+            plan = bf.plan_permute(shape, perm, materialize=False, max_steps=MAX_STEPS)
             if plan is None:
                 row["box_error"] = f"no plan within {MAX_STEPS} steps"
             else:
                 row["box_steps"] = len(plan.steps)
                 row["box_moved_ratio"] = round(plan.moved_ratio, 4)
-                w = a.clone(); bt.apply_leaderless(w, plan); torch.cuda.synchronize(); del w
+                w = a.clone(); bf.apply_leaderless(w, plan); torch.cuda.synchronize(); del w
                 torch.cuda.empty_cache()
                 b = a.clone()
-                row["box_ms"] = round(timed(lambda: bt.apply_leaderless(b, plan)), 3)
+                row["box_ms"] = round(timed(lambda: bf.apply_leaderless(b, plan)), 3)
                 row["box_correct"] = bool(torch.equal(
                     b.view(-1).reshape(tuple(shape[p] for p in perm)), expected))
                 del b; torch.cuda.empty_cache()

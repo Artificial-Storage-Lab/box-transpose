@@ -60,27 +60,31 @@ Kennesaw State University\\
 
 \begin{abstract}
 Changing the order of a tensor's axes in PyTorch is free. Fixing the layout
-afterwards is not. \texttt{.contiguous()} makes a copy, so peak memory doubles.
-On a machine that is almost full, the job fails there.
+afterwards is not. \texttt{.contiguous()} makes a full copy, so peak memory
+doubles. On a GPU that is almost full, the job fails there.
 
-We present \emph{box transpose}. It fixes the layout in place. We break the
-permutation into swaps of neighbouring groups of axes. Each swap is a matrix
-transpose. We carry it out by walking its cycles, holding one value in a
-register.
+We present \emph{box transpose}. It fixes the layout in place. A shortest-path
+search breaks the permutation into swaps of neighbouring groups of axes. Each
+swap is a batched matrix transpose, which we carry out by following its cycles.
+The only extra memory is the list of where each cycle starts.
 
-Some cells are already in the right place. A copy still has to write them. We
-skip them. So box transpose can move only \emph{part} of the tensor, where
-every earlier method has to go over all of it. How large that part is comes
-from the shape in one line of arithmetic. So the method predicts its own
-speedup before touching any data, using no number measured on a GPU.
+A copy has to write every value, even the ones already in the right place. We
+skip them. So box transpose can move less than the whole tensor, and a copy
+never can. How much it moves follows from the shape in one line of arithmetic.
+That predicts the speedup over \texttt{.contiguous()} before any data is
+touched, with no constant measured on a GPU. The prediction lands within about
+\modelErrIn\% of the measured time.
 
-We tested \resCases{} shapes at ranks \resRankLo{} to \resRankHi{}. Our method
-used \resBoxAux{} bytes against a \resTensorMB{}\,MB tensor. It beat three
-published in-place methods on \resWinIttpd{}, \resWinGl{} and \resWinGv{} of
-their cases. When the permutation leaves a large group of axes at the back
-alone, and the swap is one small square, it is \tierBeatsX{}$\times$ faster
-than \texttt{.contiguous()} itself. When no group survives at the back, it is
-the slowest method we measured. We say exactly where that line is.
+We tested \resCases{} randomly drawn shapes at ranks \resRankLo{} to
+\resRankHi{}, each \resTensorMB{}\,MB, on a \resDevice{}. Box transpose needed
+\resBoxAux{} bytes of extra memory in the median case. Against three published
+in-place methods it was faster on \resWinIttpd{}, \resWinGl{} and \resWinGv{}
+of \resCases{} cases, by \methTabIttpdX{}$\times$ to \methTabGvX{}$\times$ in
+the median. When the permutation leaves a large group of axes at the back
+alone, a check on the shape picks out the cases where we beat the copy itself.
+We won all \gateCases{} of them, \gateMedianX{}$\times$ faster in the median.
+When that group is too small, we are about \hardSmallSlowdown{}$\times$ slower
+than the copy, and the same check says so in advance.
 \end{abstract}
 
 \input{sections/1-problem}

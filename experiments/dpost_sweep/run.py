@@ -253,7 +253,7 @@ def main() -> int:
         return 0
 
     import torch
-    import box_transpose as bt
+    import box_following as bf
     ittpd = load_ittpd()
     DEV = torch.device("cuda")
     gpu = torch.cuda.get_device_name(0)
@@ -283,16 +283,16 @@ def main() -> int:
             ms, aux = timed(lambda: src.contiguous())
             row["contiguous_ms"], row["contiguous_aux_bytes"] = round(ms, 4), aux
 
-            plan = bt.plan_permute(shape, perm)
-            prof = bt.profile(plan)
+            plan = bf.plan_permute(shape, perm)
+            prof = bf.profile(plan)
             row["box_steps"] = len(plan.steps)
             row["box_aux_bytes"] = prof.aux_bytes
             row["moved_frac"] = plan.total_bytes_moved / (2 * ELEMENTS * ELEM_BYTES)
             row["box_min_d_post"] = min(s.d_post for s in plan.steps)
-            w = a.clone(); bt.apply(w, prof); torch.cuda.synchronize(); del w
+            w = a.clone(); bf.apply(w, prof); torch.cuda.synchronize(); del w
             torch.cuda.empty_cache()
             b = a.clone()
-            ms, aux = timed(lambda: bt.apply(b, prof))
+            ms, aux = timed(lambda: bf.apply(b, prof))
             row["box_ms"] = round(ms, 4)
             row["box_correct"] = bool(torch.equal(
                 b.view(-1).reshape(tuple(shape[p] for p in perm)), expected))

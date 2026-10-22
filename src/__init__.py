@@ -5,11 +5,11 @@ which transposes a logical (rows x cols) matrix in place using the known
 cycle structure of matrix transposition. The decomposition is found by
 Dijkstra search over axis orderings.
 
-    import torch, box_transpose as bt
+    import torch, box_following as bf
 
     x    = torch.randn(2, 3, 4, device="cuda")
-    plan = bt.plan_permute(x.shape, (2, 1, 0))
-    bt.apply(x, bt.profile(plan))     # x is now permuted in place
+    plan = bf.plan_permute(x.shape, (2, 1, 0))
+    bf.apply(x, bf.profile(plan))     # x is now permuted in place
 """
 from ._plan import (
     CycleInfo,
